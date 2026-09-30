@@ -179,6 +179,6 @@ Once both Vercel and Railway are running:
 
 - [ ] **Email OTP Flow**: Visit `https://your-app.vercel.app/login`, enter your email, verify OTP is received via Resend within 5 seconds and successfully logs into the dashboard.
 - [ ] **Multi-Tenant GPS**: Allow browser location access; confirm latitude and longitude are correctly stamped on farm creation.
-- [ ] **Stock Underflow Check**: Attempt to record 999 mortalities on an empty flock; confirm backend returns HTTP 409 `STOCK_UNDERFLOW_ERROR`.
+- [ ] **Stock Underflow Check**: Attempt to record 999 mortalities on an empty poultry batch; confirm backend returns HTTP 409 `STOCK_UNDERFLOW_ERROR`.
 - [ ] **SSE Streaming Advisory**: Send a question in the AI Advisory tab; verify tokens stream in character-by-character with ICAR citations.
 - [ ] **PWA Offline Shell**: Turn off Wi-Fi/Mobile data; confirm the app shell and cached ICAR manuals load cleanly without a broken network page.

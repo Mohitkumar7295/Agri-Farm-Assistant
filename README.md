@@ -1,19 +1,19 @@
 # 🌾 AgriFarmAssistant (कृषि-फार्म सहायक)
 
-> **Next-Generation Autonomous Precision Agriculture, Aquaculture & Poultry Operating System**  
+> **Next-Generation Autonomous Precision Agriculture, Fisheries & Poultry Operating System**  
 > Powered by Next.js 15 PWA, Spring Boot 3.3 (Java 21), PostgreSQL (pgvector), 4-Agent ICAR-certified AI Core, and Redis.
 
 ---
 
 ## 🌟 Executive Summary
 
-**AgriFarmAssistant** is an enterprise-grade, mobile-first Progressive Web Application (PWA) and backend platform built for small-to-large-scale farmers across India and global developing agricultural economies. It unifies **Aquaculture (Fisheries)**, **Poultry Management**, and **Integrated Crop-Livestock Farming** into a single platform backed by authentic scientific protocols from **ICAR-CIFA** (Central Institute of Freshwater Aquaculture) and **ICAR-CARI** (Central Avian Research Institute).
+**AgriFarmAssistant** is an enterprise-grade, mobile-first Progressive Web Application (PWA) and backend platform built for small-to-large-scale farmers across India and global developing agricultural economies. It unifies **Fisheries**, **Poultry Management**, and **Integrated Crop-Livestock Farming** into a single platform backed by authentic scientific protocols from **ICAR-CIFA** (Central Institute of Freshwater Aquaculture) and **ICAR-CARI** (Central Avian Research Institute).
 
 The platform features:
 - **Zero-Password Authentication**: Instant, reliable 6-digit Email OTP login (no SMS gateway failures or costs).
-- **Safe Mortality & Biological Engines**: Guaranteed mathematical constraints preventing negative flock counts, with automated Daily Weight Gain (DWG), Specific Growth Rate (SGR), and Feed Conversion Ratio (FCR) analytics.
+- **Safe Mortality & Biological Engines**: Guaranteed mathematical constraints preventing negative poultry counts, with automated Daily Weight Gain (DWG), Specific Growth Rate (SGR), and Feed Conversion Ratio (FCR) analytics.
 - **4-Agent Multi-AI Core**: Cascading Gemini LLM architecture verified against hard scientific threshold tables before any advice reaches the farmer.
-- **Nocturnal Hypoxia & Weather Sentinel**: Predicts midnight dissolved oxygen crashes in aquaculture ponds and extreme poultry heat stress using live GPS weather telemetry.
+- **Nocturnal Hypoxia & Weather Sentinel**: Predicts midnight dissolved oxygen crashes in fish ponds and extreme poultry heat stress using live GPS weather telemetry.
 - **Bilingual Accessibility**: 100% native Devanagari Hindi and English localization with real-time speech input/output.
 
 ---
@@ -38,11 +38,11 @@ The platform features:
 | :-: | :--- | :--- | :--- | :--- |
 | **1** | **Email OTP Auth & Multi-Tenant** | `modules/auth/`, `TenantContextFilter.java` | `/login`, `app/login/page.tsx` | [`API_SPECIFICATION.md`](docs/API_SPECIFICATION.md#1-authentication-endpoints) |
 | **2** | **Multi-Farm GPS Management** | `modules/farm/FarmService.java` | `/dashboard`, `hooks/useGeolocation.ts` | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md#multi-tenant-data-isolation) |
-| **3** | **Aquaculture & Species Hub** | `modules/aquaculture/AquacultureService.java` | `/aquaculture`, `[pondId]/page.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#icar-cifa-aquaculture-standards) |
-| **4** | **Poultry Batch Management** | `modules/poultry/PoultryService.java` | `/poultry`, `[flockId]/page.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#icar-cari-poultry-standards) |
+| **3** | **Fisheries & Species Hub** | `modules/fisheries/FisheriesService.java` | `/fisheries`, `[pondId]/page.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#icar-cifa-fisheries-standards) |
+| **4** | **Poultry Batch Management** | `modules/poultry/PoultryService.java` | `/poultry`, `[poultryId]/page.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#icar-cari-poultry-standards) |
 | **5** | **Biological Growth, DWG, SGR** | `modules/growth/GrowthCalculationService.java` | `components/gauges/GrowthProgressRing.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#growth--feed-mathematical-formulas) |
-| **6** | **Feed Engine, FCR & Forecast** | `modules/feeding/FeedingEngineService.java` | `/aquaculture/feeding`, `FcrComparisonChart.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#growth--feed-mathematical-formulas) |
-| **7** | **Safe Mortality Engine** | `modules/mortality/SafeMortalityService.java` | `/aquaculture/[pondId]`, `/poultry/[flockId]` | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md#safe-mortality--stock-concurrency-engine) |
+| **6** | **Feed Engine, FCR & Forecast** | `modules/feeding/FeedingEngineService.java` | `/fisheries/feeding`, `FcrComparisonChart.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#growth--feed-mathematical-formulas) |
+| **7** | **Safe Mortality Engine** | `modules/mortality/SafeMortalityService.java` | `/fisheries/[pondId]`, `/poultry/[poultryId]` | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md#safe-mortality--stock-concurrency-engine) |
 | **8** | **Water Quality Telemetry** | `modules/waterquality/WaterQualityService.java` | `/water-telemetry`, `WaterQualityGauge.tsx` | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#water-quality-critical-threshold-matrix) |
 | **9** | **Health & Treatment Log** | `modules/health/HealthTreatmentService.java` | Clinical observation dialogs & withdrawal alerts | [`API_SPECIFICATION.md`](docs/API_SPECIFICATION.md#9-clinical-health--treatment-endpoints) |
 | **10** | **Poultry Vaccination Calendar** | `modules/poultry/VaccinationService.java` | `/poultry/vaccines`, Vaccine reminders | [`SCIENTIFIC_THRESHOLDS.md`](docs/SCIENTIFIC_THRESHOLDS.md#national-poultry-vaccination-protocol-india) |
@@ -164,7 +164,7 @@ Frontend will be accessible at `http://localhost:3000`.
 ## 📚 Documentation Deep Dives
 
 1. **[System Architecture & Data Flows](docs/SYSTEM_ARCHITECTURE.md)**: Multi-Agent design, Stage-2 Verification, Safe Decrement Engine, and PWA Service Worker caching.
-2. **[Scientific Thresholds & ICAR Protocols](docs/SCIENTIFIC_THRESHOLDS.md)**: ICAR-CIFA carp aquaculture standards, ICAR-CARI poultry standards, water quality matrices, and disease formulas.
+2. **[Scientific Thresholds & ICAR Protocols](docs/SCIENTIFIC_THRESHOLDS.md)**: ICAR-CIFA carp fisheries standards, ICAR-CARI poultry standards, water quality matrices, and disease formulas.
 3. **[API Specification & OpenAPI Documentation](docs/API_SPECIFICATION.md)**: Full REST & SSE API contract across all 20 modules.
 4. **[Deployment Guide (Vercel & Railway)](docs/DEPLOYMENT_GUIDE.md)**: Complete guide to provisioning on Vercel and Railway's free/starter tiers with zero surprise costs.
 

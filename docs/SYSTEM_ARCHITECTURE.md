@@ -11,7 +11,7 @@
 AgriFarmAssistant is designed as a **Resilient, Modular Monolith Backend** paired with an **Edge-Rendered, Offline-Capable Progressive Web Application (PWA)**. The architectural choices address the unique challenges of rural agricultural environments:
 
 1. **Deterministic Scientific Safety First**: AI advice must never be delivered directly from an LLM without passing through deterministic scientific verification (`Stage2VerificationLayer`).
-2. **Zero-Underflow Stock Integrity**: Biological counts (poultry flock birds, pond fish biomass) must be mathematically immutable against race conditions and underflow errors.
+2. **Zero-Underflow Stock Integrity**: Biological counts (poultry birds, pond fish biomass) must be mathematically immutable against race conditions and underflow errors.
 3. **Bandwidth & Connectivity Tolerance**: High-latency 2G/3G rural networks demand aggressive client-side caching (Service Worker), lightweight payloads, and resilient SSE streams over fragile WebSockets.
 4. **Zero-SMS Dependency**: Traditional SMS OTPs suffer from high telecom failure rates and per-message operational costs. AgriFarmAssistant utilizes instantaneous cryptographically signed **Email OTP** and 30-day JWT sessions.
 
@@ -95,7 +95,7 @@ SELECT f FROM Farm f WHERE f.user.id = :tenantId AND f.deletedAt IS NULL;
 
 ### Level 3: Database Integrity Constraints
 Foreign keys cascade down the hierarchy:
-$$\text{User} \longrightarrow \text{Farm} \longrightarrow \{\text{Pond}, \text{PoultryShed}\} \longrightarrow \{\text{FishBatch}, \text{FlockBatch}\}$$
+$$\text{User} \longrightarrow \text{Farm} \longrightarrow \{\text{Pond}, \text{PoultryShed}\} \longrightarrow \{\text{FishBatch}, \text{PoultryBatch}\}$$
 
 Any attempt to perform an operation on a resource belonging to another tenant throws a `TenantViolationException` (HTTP 403 Forbidden).
 
@@ -103,12 +103,12 @@ Any attempt to perform an operation on a resource belonging to another tenant th
 
 ## 4. Safe Mortality & Stock Concurrency Engine
 
-Accurate mortality tracking is essential for calculating Feed Conversion Ratio (FCR) and Daily Weight Gain (DWG). A common bug in agricultural software is race conditions resulting in negative flock populations.
+Accurate mortality tracking is essential for calculating Feed Conversion Ratio (FCR) and Daily Weight Gain (DWG). A common bug in agricultural software is race conditions resulting in negative poultry populations.
 
 ### Concurrency Protection Mechanism
 1. **Pessimistic / Row-Level Lock**: When a mortality log is recorded, the parent batch row is locked:
    ```sql
-   SELECT * FROM flock_batches WHERE id = :flockId FOR UPDATE;
+   SELECT * FROM poultry_batches WHERE id = :poultryId FOR UPDATE;
    ```
 2. **Pre-flight Stock Underflow Check**:
    ```java
@@ -121,8 +121,8 @@ Accurate mortality tracking is essential for calculating Feed Conversion Ratio (
    ```
 3. **Database Check Constraint**:
    ```sql
-   ALTER TABLE flock_batches 
-   ADD CONSTRAINT chk_positive_flock_stock CHECK (current_quantity >= 0);
+   ALTER TABLE poultry_batches 
+   ADD CONSTRAINT chk_positive_poultry_stock CHECK (current_quantity >= 0);
 
    ALTER TABLE polyculture_stocks 
    ADD CONSTRAINT chk_positive_fish_stock CHECK (current_quantity >= 0);
@@ -147,7 +147,7 @@ sequenceDiagram
 
     Farmer->>Gateway: POST /api/v1/ai/chat/stream {query, pondId}
     Gateway->>Router: routeQuery(query, farmContext)
-    Router->>RAG: Cosine Similarity Search (k=4, domain=AQUACULTURE)
+    Router->>RAG: Cosine Similarity Search (k=4, domain=FISHERIES)
     RAG-->>Router: ICAR-CIFA Protocol Chunks
     Router->>LLM: Specialized Prompt + Farm Context + RAG Chunks
     LLM-->>Router: Candidate Clinical Advice / Dosage
@@ -221,7 +221,7 @@ flowchart LR
 1. Images are captured directly via the HTML5 `MediaDevices.getUserMedia()` API or file input.
 2. Compressed client-side to under 1.5MB to save farmer mobile data.
 3. Uploaded to S3-compatible storage with a short-lived presigned URL.
-4. Processed alongside recent pond/flock telemetry (e.g. water temperature, mortality spikes) for multimodal analysis.
+4. Processed alongside recent pond/poultry telemetry (e.g. water temperature, mortality spikes) for multimodal analysis.
 
 ---
 
@@ -304,7 +304,7 @@ agrifarm-assistant/
 │       │   │   │   ├── SecurityConfig.java         # Stateless JWT filter + Email OTP endpoints
 │       │   │   │   ├── TenantContextFilter.java    # Strict Multi-Tenant user_id isolation
 │       │   │   │   ├── CorsConfig.java             # Responsive Laptop & Mobile Web origins
-│       │   │   │   ├── SpringAiConfig.java         # Gemini 1.5 Pro/Flash + ChatClient configuration
+│       │   │   │   ├── SpringAiConfig.java         # Gemini 1.5 Pro/Flash + ChatClient config
 │       │   │   │   ├── VectorStoreConfig.java      # PgVectorStore with HNSW index config
 │       │   │   │   ├── RedisCacheConfig.java       # Cache manager for 30-min weather TTL
 │       │   │   │   ├── MinioConfig.java            # MinIO client for disease photos & PDFs
@@ -342,28 +342,28 @@ agrifarm-assistant/
 │       │   │   │   ├── farm/                # 🏡 Feature 2: Multi-Farm & GPS Management
 │       │   │   │   │   ├── controller/FarmController.java
 │       │   │   │   │   ├── dto/FarmCreateDto.java, FarmSummaryDto.java
-│       │   │   │   │   ├── model/Farm.java, FarmDomain.java (AQUACULTURE, POULTRY, INTEGRATED)
+│       │   │   │   │   ├── model/Farm.java, FarmDomain.java (FISHERIES, POULTRY, INTEGRATED)
 │       │   │   │   │   ├── repository/FarmRepository.java
 │       │   │   │   │   └── service/FarmService.java     # Auto GPS lat/long capture, soft delete
 │       │   │   │   │
-│       │   │   │   ├── aquaculture/         # 🐟 Feature 3: Fisheries Batch Management
+│       │   │   │   ├── fisheries/           # 🐟 Feature 3: Fisheries Batch Management
 │       │   │   │   │   ├── controller/PondController.java, FisheriesBatchController.java
 │       │   │   │   │   ├── dto/PondCreateDto.java, StockingSpecieDto.java, BatchSummaryDto.java
 │       │   │   │   │   ├── model/
 │       │   │   │   │   │   ├── Pond.java           # Area (acres), depth (feet)
 │       │   │   │   │   │   ├── FishBatch.java
-│       │   │   │   │   │   └── PolycultureStock.java # Rohu, Catla, Mrigal, Pangasius, Tilapia, Prawn
+│       │   │   │   │   │   └── PolycultureStock.java # Rohu, Catla, Mrigal, Pangasius, Tilapia
 │       │   │   │   │   ├── repository/PondRepository.java, FishBatchRepository.java
-│       │   │   │   │   └── service/AquacultureService.java
+│       │   │   │   │   └── service/FisheriesService.java
 │       │   │   │   │
 │       │   │   │   ├── poultry/             # 🐔 Feature 4: Poultry Batch Management
-│       │   │   │   │   ├── controller/PoultryShedController.java, FlockController.java
-│       │   │   │   │   ├── dto/ShedCreateDto.java, FlockCreateDto.java, VaccineRecordDto.java
+│       │   │   │   │   ├── controller/PoultryShedController.java, PoultryBatchController.java
+│       │   │   │   │   ├── dto/ShedCreateDto.java, PoultryBatchCreateDto.java, VaccineRecordDto.java
 │       │   │   │   │   ├── model/
 │       │   │   │   │   │   ├── PoultryShed.java    # Area (sq. ft.), density
-│       │   │   │   │   │   ├── FlockBatch.java     # Broiler, Layer, Desi, Kadaknath, Quail
+│       │   │   │   │   │   ├── PoultryBatch.java   # Broiler, Layer, Desi, Kadaknath, Quail
 │       │   │   │   │   │   └── VaccineSchedule.java # Feature 10: Marek, Ranikhet, IBD, Fowl Pox
-│       │   │   │   │   ├── repository/FlockBatchRepository.java, VaccineScheduleRepository.java
+│       │   │   │   │   ├── repository/PoultryBatchRepository.java, VaccineScheduleRepository.java
 │       │   │   │   │   └── service/PoultryService.java, VaccinationService.java
 │       │   │   │   │
 │       │   │   │   ├── growth/              # ⚖️ Feature 5: Biological Growth & Target Weights
@@ -476,7 +476,7 @@ agrifarm-assistant/
 │       │       │   └── vision-diagnostic.st
 │       │       └── db/migration/                # Flyway Migrations
 │       │           ├── V1__init_auth_and_farms.sql
-│       │           ├── V2__init_aquaculture_and_poultry.sql
+│       │           ├── V2__init_fisheries_and_poultry.sql
 │       │           ├── V3__init_telemetry_growth_feeding.sql
 │       │           ├── V4__init_pgvector_and_knowledge_tables.sql
 │       │           └── V5__init_hnsw_vector_indexes.sql
@@ -496,7 +496,7 @@ agrifarm-assistant/
 │   ├── config.py                            # Database credentials & embedding model keys
 │   ├── data/
 │   │   ├── raw_protocols/                   # Authentic scientific research documents
-│   │   │   ├── icar_cifa_aquaculture_manual.pdf
+│   │   │   ├── icar_cifa_fisheries_manual.pdf
 │   │   │   ├── icar_cari_poultry_management.pdf
 │   │   │   ├── fish_disease_treatment_matrix.pdf
 │   │   │   └── water_quality_critical_thresholds.csv
@@ -510,7 +510,7 @@ agrifarm-assistant/
 │   │
 │   ├── processors/
 │   │   ├── semantic_chunker.py              # Chunks by species (Rohu/Broiler), disease, stage
-│   │   └── metadata_enricher.py             # Tags: { domain: "aquaculture", species: "Rohu" }
+│   │   └── metadata_enricher.py             # Tags: { domain: "fisheries", species: "Rohu" }
 │   │
 │   ├── embedder/
 │   │   └── pgvector_upserter.py             # Computes embeddings & performs batch insert
@@ -542,14 +542,14 @@ agrifarm-assistant/
 │       │   ├── dashboard/                   # 🏡 Unified Dashboard
 │       │   │   └── page.tsx                 # Adaptive: Multi-column on Laptop, Stacked on Mobile
 │       │   │
-│       │   ├── aquaculture/                 # 🐟 Fisheries Hub
+│       │   ├── fisheries/                   # 🐟 Fisheries Hub
 │       │   │   ├── page.tsx                 # Pond overview, standing biomass, water state
 │       │   │   ├── [pondId]/page.tsx        # Species sampling, DWG, SGR, 10-day feeding forecast
 │       │   │   └── feeding/page.tsx         # Daily feeding log & FCR comparison graph
 │       │   │
 │       │   ├── poultry/                     # 🐔 Poultry Hub
-│       │   │   ├── page.tsx                 # Shed overview, flock counts, age in weeks
-│       │   │   ├── [flockId]/page.tsx       # Breed metrics, thermal comfort index
+│       │   │   ├── page.tsx                 # Shed overview, poultry counts, age in weeks
+│       │   │   ├── [poultryId]/page.tsx     # Breed metrics, thermal comfort index
 │       │   │   └── vaccines/page.tsx        # Feature 10: Vaccine calendar & overdue alerts
 │       │   │
 │       │   ├── water-telemetry/             # 💧 Water Quality Dashboard
@@ -585,9 +585,9 @@ agrifarm-assistant/
 │       │   │   └── drawer.tsx               # Slide-up bottom sheets for Mobile
 │       │   │
 │       │   ├── domain-themes/               # Feature 20: Theme Providers
-│       │   │   ├── AquacultureThemeWrapper.tsx # Cyan / Blue accent theme
-│       │   │   ├── PoultryThemeWrapper.tsx     # Crimson / Amber barn theme
-│       │   │   └── AgriThemeWrapper.tsx        # Emerald green theme
+│       │   │   ├── FisheriesThemeWrapper.tsx # Cyan / Blue accent theme
+│       │   │   ├── PoultryThemeWrapper.tsx   # Crimson / Amber barn theme
+│       │   │   └── AgriThemeWrapper.tsx      # Emerald green theme
 │       │   │
 │       │   ├── ai/                          # AI Chat & Voice
 │       │   │   ├── StreamingMessage.tsx     # Character-by-character typewriter effect
@@ -631,7 +631,7 @@ agrifarm-assistant/
 │       │
 │       └── types/                           # TypeScript Domain Models
 │           ├── auth.types.ts
-│           ├── aquaculture.types.ts
+│           ├── fisheries.types.ts
 │           ├── poultry.types.ts
 │           ├── telemetry.types.ts
 │           └── ai.types.ts
@@ -642,7 +642,7 @@ agrifarm-assistant/
     ├── API_SPECIFICATION.md                 # Full OpenAPI 3.0 / Swagger schema
     └── DEPLOYMENT_GUIDE.md                  # Docker Compose, Vercel & Railway setup
 ```
-
+Railways
 ---
 
 ## 11. Feature-to-File Alignment Mapping
@@ -653,13 +653,13 @@ To guarantee 100% architectural coverage, the table below maps each of the 20 fu
 | :-: | :--- | :--- | :--- |
 | **1** | **Email OTP Auth & Multi-Tenant** | `modules/auth/EmailOtpService.java`, `TenantContextFilter.java` | `app/login/page.tsx` |
 | **2** | **Farm Management (Live GPS)** | `modules/farm/FarmService.java` | `hooks/useGeolocation.ts`, `app/dashboard/` |
-| **3** | **Aquaculture & Species Management** | `modules/aquaculture/AquacultureService.java` | `app/aquaculture/`, `app/aquaculture/[pondId]/` |
-| **4** | **Poultry Batch Management** | `modules/poultry/PoultryService.java` | `app/poultry/`, `app/poultry/[flockId]/` |
+| **3** | **Fisheries & Species Management** | `modules/fisheries/FisheriesService.java` | `app/fisheries/`, `app/fisheries/[pondId]/` |
+| **4** | **Poultry Batch Management** | `modules/poultry/PoultryService.java` | `app/poultry/`, `app/poultry/[poultryId]/` |
 | **5** | **Biological Growth, DWG, SGR** | `modules/growth/GrowthCalculationService.java` | `components/gauges/GrowthProgressRing.tsx` |
 | **6** | **Feed Engine, FCR & Forecast** | `modules/feeding/FeedingEngineService.java` | `components/charts/FcrComparisonChart.tsx` |
-| **7** | **Safe Mortality Tracking** | `modules/mortality/SafeMortalityService.java` | `app/aquaculture/[pondId]/`, `app/poultry/[flockId]/` |
+| **7** | **Safe Mortality Tracking** | `modules/mortality/SafeMortalityService.java` | `app/fisheries/[pondId]/`, `app/poultry/[poultryId]/` |
 | **8** | **Water Quality Telemetry** | `modules/waterquality/WaterQualityService.java` | `components/gauges/WaterQualityGauge.tsx` |
-| **9** | **Health & Treatment Log** | `modules/health/HealthTreatmentService.java` | `app/aquaculture/[pondId]/`, `app/poultry/[flockId]/` |
+| **9** | **Health & Treatment Log** | `modules/health/HealthTreatmentService.java` | `app/fisheries/[pondId]/`, `app/poultry/[poultryId]/` |
 | **10** | **Poultry Vaccination Calendar** | `modules/poultry/VaccinationService.java` | `app/poultry/vaccines/page.tsx` |
 | **11** | **Financials & COP/kg** | `modules/finance/FinanceService.java` | `app/financials/page.tsx` |
 | **12** | **4-Agent ICAR Multi-AI Core** | `modules/ai/agents/*`, `Stage2VerificationLayer.java` | `components/ai/IcarCitationFootnote.tsx` |
@@ -679,13 +679,13 @@ To guarantee 100% architectural coverage, the table below maps each of the 20 fu
 In Flyway migrations `V1` through `V5`:
 
 ### 12.1 Multi-Tenant Relational Hierarchy
-$$\text{users} \longrightarrow \text{farms (lat, long, domain)} \longrightarrow \{\text{ponds}, \text{poultry\_sheds}\} \longrightarrow \{\text{fish\_batches}, \text{flock\_batches}\}$$
+$$\text{users} \longrightarrow \text{farms (lat, long, domain)} \longrightarrow \{\text{ponds}, \text{poultry\_sheds}\} \longrightarrow \{\text{fish\_batches}, \text{poultry\_batches}\}$$
 
 ### 12.2 Safe Decrement Validation
 ```sql
 -- Ensure stock counts can never underflow
-ALTER TABLE flock_batches 
-ADD CONSTRAINT chk_positive_flock_stock CHECK (current_quantity >= 0);
+ALTER TABLE poultry_batches 
+ADD CONSTRAINT chk_positive_poultry_stock CHECK (current_quantity >= 0);
 
 ALTER TABLE polyculture_stocks 
 ADD CONSTRAINT chk_positive_fish_stock CHECK (current_quantity >= 0);
@@ -697,7 +697,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE knowledge_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain VARCHAR(50) NOT NULL,            -- AQUACULTURE, POULTRY, GENERAL
+    domain VARCHAR(50) NOT NULL,            -- FISHERIES, POULTRY, GENERAL
     species VARCHAR(100),                   -- Rohu, Catla, Broiler, Layer
     category VARCHAR(100),                  -- DISEASE, FEEDING, WATER_QUALITY
     content TEXT NOT NULL,

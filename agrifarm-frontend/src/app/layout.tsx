@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgriFarmAssistant | Enterprise Agriculture, Aquaculture & Poultry OS",
+  title: "AgriFarmAssistant | Enterprise Agriculture, Fisheries & Poultry OS",
   description:
     "Autonomous Precision Agriculture, Fisheries and Poultry Operating System validated by ICAR-CIFA and ICAR-CARI protocols.",
   icons: {

@@ -8,11 +8,11 @@
 
 ---
 
-## 1. ICAR-CIFA Aquaculture Standards
+## 1. ICAR-CIFA Fisheries Standards
 
 ### 1.1 Indian Major Carp (IMC) Polyculture Ratio
 
-In traditional and semi-intensive freshwater aquaculture, ecological niche stratification maximizes feed efficiency and natural pond productivity:
+In traditional and semi-intensive freshwater fisheries, ecological niche stratification maximizes feed efficiency and natural pond productivity:
 
 | Species | Ecological Niche | Feeding Zone | Standard Stocking Ratio | Optimal Stocking Density |
 | :--- | :--- | :--- | :---: | :---: |
@@ -76,7 +76,7 @@ $$\text{THI} = 0.8 \times T_{\text{ambient}} + \left(\frac{\text{RH}\%}{100}\rig
 
 where $T_{\text{ambient}}$ is dry bulb temperature in $^\circ\text{C}$ and $\text{RH}\%$ is relative humidity.
 
-| THI Range | Alert Status | Impact on Flock | Automated Interventions Triggered |
+| THI Range | Alert Status | Impact on Poultry | Automated Interventions Triggered |
 | :---: | :---: | :--- | :--- |
 | **$< 70$** | 🟢 **Comfort Zone** | Optimal feed intake and growth. | Normal feeding schedules. |
 | **$70 - 75$** | 🟡 **Alert** | Slight panting, increased water intake. | Ensure continuous cool water, activate fans. |

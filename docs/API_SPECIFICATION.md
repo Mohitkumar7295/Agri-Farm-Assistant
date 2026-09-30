@@ -30,7 +30,7 @@ Content-Type: application/json
 ```json
 {
   "success": false,
-  "message": "Stock underflow detected: Mortality count exceeds current flock population",
+  "message": "Stock underflow detected: Mortality count exceeds current poultry population",
   "errorCode": "STOCK_UNDERFLOW_ERROR",
   "timestamp": "2026-09-28T00:30:00.000Z"
 }
@@ -115,10 +115,10 @@ Content-Type: application/json
 
 ---
 
-## 4. Aquaculture & Pond Hub (`/aquaculture`)
+## 4. Fisheries & Pond Hub (`/fisheries`)
 
 ### 4.1 Create Pond
-- **Endpoint**: `POST /aquaculture/ponds`
+- **Endpoint**: `POST /fisheries/ponds`
 - **Request Body**:
 ```json
 {
@@ -132,7 +132,7 @@ Content-Type: application/json
 ```
 
 ### 4.2 Stock Polyculture Batch
-- **Endpoint**: `POST /aquaculture/ponds/{pondId}/batches`
+- **Endpoint**: `POST /fisheries/ponds/{pondId}/batches`
 - **Request Body**:
 ```json
 {
@@ -165,12 +165,12 @@ Content-Type: application/json
 }
 ```
 
-### 5.2 Stock Flock Batch
-- **Endpoint**: `POST /poultry/sheds/{shedId}/flocks`
+### 5.2 Stock Poultry Batch
+- **Endpoint**: `POST /poultry/sheds/{shedId}/batches`
 - **Request Body**:
 ```json
 {
-  "flockCode": "FLOCK-BROILER-2026-09",
+  "batchCode": "POULTRY-BROILER-2026-09",
   "breed": "COBB_500",
   "category": "BROILER",
   "initialQuantity": 4500,
@@ -187,7 +187,7 @@ Content-Type: application/json
 - **Request Body**:
 ```json
 {
-  "entityType": "POULTRY_FLOCK",
+  "entityType": "POULTRY_BATCH",
   "entityId": "8f307842-83b6-4b2a-bf36-fbe755f1064a",
   "deadCount": 12,
   "suspectedCause": "HEAT_STRESS",
@@ -199,7 +199,7 @@ Content-Type: application/json
 ```json
 {
   "success": false,
-  "message": "Stock underflow: Cannot record 12 mortalities. Current flock count is 5.",
+  "message": "Stock underflow: Cannot record 12 mortalities. Current poultry count is 5.",
   "errorCode": "STOCK_UNDERFLOW_ERROR"
 }
 ```
@@ -212,7 +212,7 @@ Content-Type: application/json
 - **Request Body**:
 ```json
 {
-  "entityType": "AQUACULTURE_BATCH",
+  "entityType": "FISHERIES_BATCH",
   "batchId": "698c9f5d-79e1-4c12-9c7f-38a4c1075d9e",
   "specie": "ROHU",
   "sampleSizeCount": 25,
@@ -243,7 +243,7 @@ Content-Type: application/json
 - **Request Body**:
 ```json
 {
-  "entityType": "AQUACULTURE_POND",
+  "entityType": "FISHERIES_POND",
   "entityId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
   "feedType": "FLOATING_PELLET_28_PROTEIN",
   "quantityKg": 35.0,
@@ -306,7 +306,7 @@ event: chunk
 data: {"token": "गिल रॉट "}
 
 event: citation
-data: {"source": "ICAR-CIFA Freshwater Aquaculture Manual 2024, Page 114", "verified": true}
+data: {"source": "ICAR-CIFA Freshwater Fisheries Manual 2024, Page 114", "verified": true}
 
 event: done
 data: {"status": "COMPLETED"}
@@ -320,7 +320,7 @@ data: {"status": "COMPLETED"}
 - **Consumes**: `multipart/form-data`
 - **Form Fields**:
   - `file`: Image file (JPG/PNG, $\le 5\text{MB}$)
-  - `entityType`: `AQUACULTURE` or `POULTRY`
+  - `entityType`: `FISHERIES` or `POULTRY`
   - `entityId`: UUID
 - **Response**: `200 OK`
 ```json

@@ -1,0 +1,214 @@
+export type AuthLanguage = "en" | "hi";
+
+export interface AuthContent {
+  nav: {
+    brandTitle: string;
+    brandSubtitle: string;
+    backHome: string;
+  };
+  tabs: {
+    register: string;
+    login: string;
+    registerSubtitle: string;
+    loginSubtitle: string;
+  };
+  registerForm: {
+    fullNameLabel: string;
+    fullNamePlaceholder: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    mobileLabel: string;
+    mobilePlaceholder: string;
+    addressLabel: string;
+    addressPlaceholder: string;
+    countryLabel: string;
+    countryPlaceholder: string;
+    stateLabel: string;
+    statePlaceholder: string;
+    districtLabel: string;
+    districtPlaceholder: string;
+    villageCityLabel: string;
+    villageCityPlaceholder: string;
+    termsAgreement: string;
+    btnRegister: string;
+    processing: string;
+    alreadyAccount: string;
+  };
+  loginForm: {
+    emailLabel: string;
+    emailPlaceholder: string;
+    btnSendCode: string;
+    sending: string;
+    noAccount: string;
+  };
+  otpStep: {
+    title: string;
+    instruction: string;
+    resendIn: string;
+    seconds: string;
+    resendLink: string;
+    btnVerify: string;
+    verifying: string;
+    changeEmail: string;
+  };
+  errors: {
+    requiredField: string;
+    invalidEmail: string;
+    invalidMobile: string;
+    allGeoRequired: string;
+    termsRequired: string;
+    invalidOtp: string;
+    wrongOtp: string;
+  };
+  ambientCard: {
+    badge: string;
+    heading: string;
+    bullet1: string;
+    bullet2: string;
+    bullet3: string;
+    footnote: string;
+  };
+}
+
+export const authTranslations: Record<AuthLanguage, AuthContent> = {
+  en: {
+    nav: {
+      brandTitle: "AgriFarmAssistant",
+      brandSubtitle: "Farm Management Platform",
+      backHome: "Back to Home",
+    },
+    tabs: {
+      register: "Register",
+      login: "Login",
+      registerSubtitle: "New Farmer Account Creation & Geographic Profile",
+      loginSubtitle: "Returning Farmer Instant 6-Digit Email OTP Login",
+    },
+    registerForm: {
+      fullNameLabel: "Full Name",
+      fullNamePlaceholder: "Ramesh Chandra",
+      emailLabel: "Email Address",
+      emailPlaceholder: "farmer@example.com",
+      mobileLabel: "Mobile Number",
+      mobilePlaceholder: "+91 98765 43210",
+      addressLabel: "Complete Street Address",
+      addressPlaceholder: "Plot 42, Green Valley Farm Road",
+      countryLabel: "Country",
+      countryPlaceholder: "India",
+      stateLabel: "State",
+      statePlaceholder: "Madhya Pradesh",
+      districtLabel: "District",
+      districtPlaceholder: "Indore",
+      villageCityLabel: "Village or City Name",
+      villageCityPlaceholder: "Sanwer",
+      termsAgreement: "I agree to the Terms of Service and Privacy Policy",
+      btnRegister: "Register",
+      processing: "Registering & Sending OTP...",
+      alreadyAccount: "Already registered? Switch to Login",
+    },
+    loginForm: {
+      emailLabel: "Registered Email Address",
+      emailPlaceholder: "farmer@example.com",
+      btnSendCode: "Send Login Code",
+      sending: "Sending 6-Digit Code...",
+      noAccount: "New farmer? Switch to Register",
+    },
+    otpStep: {
+      title: "Verify 6-Digit Code",
+      instruction: "A 6-digit verification code has been dispatched to",
+      resendIn: "Resend Code in",
+      seconds: "s",
+      resendLink: "Resend Code",
+      btnVerify: "Verify & Enter Portal",
+      verifying: "Validating Code...",
+      changeEmail: "Change Email Address",
+    },
+    errors: {
+      requiredField: "This field is required.",
+      invalidEmail: "Please enter a valid email address.",
+      invalidMobile: "Please enter a valid 10-digit mobile number.",
+      allGeoRequired:
+        "All geographic fields (Country, State, District, Village or City) are mandatory.",
+      termsRequired: "You must agree to the Terms of Service to proceed.",
+      invalidOtp: "Please input all 6 digits of your verification code.",
+      wrongOtp: "Incorrect verification code. Please check your inbox and try again.",
+    },
+    ambientCard: {
+      badge: "Farm Intelligence & Access Gateway",
+      heading: "Digital Management for Modern Agriculture",
+      bullet1: "Zero-SMS Dependency: Instant 6-digit Email OTP delivered securely",
+      bullet2: "Strict Multi-Tenant Isolation with 30-Day Encrypted JWT Sessions",
+      bullet3: "Mandatory Geographic Profiling for Localized Weather & Diagnostics",
+      footnote: "256-Bit Encrypted Data • ICAR Protocol Compliant Farmer Database",
+    },
+  },
+  hi: {
+    nav: {
+      brandTitle: "कृषि-फार्म सहायक",
+      brandSubtitle: "फार्म प्रबंधन प्लेटफॉर्म",
+      backHome: "होमपेज पर लौटें",
+    },
+    tabs: {
+      register: "पंजीकरण",
+      login: "लॉगिन",
+      registerSubtitle: "नया किसान खाता निर्माण एवं अनिवार्य भौगोलिक प्रोफाइल",
+      loginSubtitle: "पंजीकृत किसान तात्कालिक 6-अंकीय ईमेल ओटीपी लॉगिन",
+    },
+    registerForm: {
+      fullNameLabel: "पूरा नाम",
+      fullNamePlaceholder: "रमेश चंद्र",
+      emailLabel: "ईमेल पता",
+      emailPlaceholder: "farmer@example.com",
+      mobileLabel: "मोबाइल नंबर",
+      mobilePlaceholder: "+91 98765 43210",
+      addressLabel: "पूरा स्थानीय पता",
+      addressPlaceholder: "प्लॉट 42, ग्रीन वैली फार्म रोड",
+      countryLabel: "देश",
+      countryPlaceholder: "भारत",
+      stateLabel: "राज्य",
+      statePlaceholder: "मध्य प्रदेश",
+      districtLabel: "ज़िला",
+      districtPlaceholder: "इंदौर",
+      villageCityLabel: "गाँव अथवा शहर का नाम",
+      villageCityPlaceholder: "सांवेर",
+      termsAgreement: "मैं सेवा की शर्तों एवं गोपनीयता नीति से सहमत हूँ",
+      btnRegister: "पंजीकरण करें",
+      processing: "पंजीकरण व ओटीपी प्रेषण प्रगति पर...",
+      alreadyAccount: "पहले से पंजीकृत हैं? लॉगिन पर जाएं",
+    },
+    loginForm: {
+      emailLabel: "पंजीकृत ईमेल पता",
+      emailPlaceholder: "farmer@example.com",
+      btnSendCode: "लॉगिन कोड भेजें",
+      sending: "6-अंकीय कोड भेजा जा रहा है...",
+      noAccount: "नए किसान हैं? पंजीकरण पर जाएं",
+    },
+    otpStep: {
+      title: "6-अंकीय कोड सत्यापित करें",
+      instruction: "6-अंकीय सत्यापन कोड इस ईमेल पर भेजा गया है:",
+      resendIn: "पुनः कोड भेजें",
+      seconds: "सेकंड",
+      resendLink: "कोड पुनः भेजें",
+      btnVerify: "सत्यापित कर पोर्टल में प्रवेश करें",
+      verifying: "कोड सत्यापन प्रगति पर...",
+      changeEmail: "ईमेल पता बदलें",
+    },
+    errors: {
+      requiredField: "यह फ़ील्ड अनिवार्य है।",
+      invalidEmail: "कृपया एक वैध ईमेल पता दर्ज करें।",
+      invalidMobile: "कृपया एक वैध 10-अंकीय मोबाइल नंबर दर्ज करें।",
+      allGeoRequired:
+        "सभी भौगोलिक विवरण (देश, राज्य, ज़िला, गाँव या शहर) भरना अनिवार्य है।",
+      termsRequired: "आगे बढ़ने के लिए सेवा की शर्तों को स्वीकार करना आवश्यक है।",
+      invalidOtp: "कृपया सत्यापन कोड के सभी 6 अंक दर्ज करें।",
+      wrongOtp: "अमान्य सत्यापन कोड। कृपया इनबॉक्स जांचकर पुनः प्रयास करें।",
+    },
+    ambientCard: {
+      badge: "फार्म इंटेलिजेंस एवं एक्सेस गेटवे",
+      heading: "आधुनिक कृषि हेतु डिजिटल प्रबंधन प्रणाली",
+      bullet1: "शून्य-एसएमएस निर्भरता: सुरक्षित एवं त्वरित 6-अंकीय ईमेल ओटीपी वितरण",
+      bullet2: "30-दिवसीय एन्क्रिप्टेड सत्र टोकन के साथ सख्त डेटा पृथक्करण",
+      bullet3: "स्थानीय मौसम और डायग्नोस्टिक्स हेतु अनिवार्य भौगोलिक प्रोफाइलिंग",
+      footnote: "256-बिट एन्क्रिप्टेड डेटा • वैज्ञानिक प्रोटोकॉल अनुरूप किसान डेटाबेस",
+    },
+  },
+};
