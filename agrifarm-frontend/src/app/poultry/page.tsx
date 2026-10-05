@@ -97,6 +97,13 @@ export default function PoultryPage() {
 
   // Load from localStorage on mount
   useEffect(() => {
+    // 0. Strict Auth Guard: without login no entry in dashboard from anywhere
+    const token = typeof window !== "undefined" ? localStorage.getItem("agrifarm_jwt") : null;
+    if (!token) {
+      window.location.replace("/login");
+      return;
+    }
+
     const savedLang = localStorage.getItem("agrifarm_lang") as PoultryLanguage;
     if (savedLang === "en" || savedLang === "hi") {
       setLang(savedLang);

@@ -97,6 +97,13 @@ export default function FisheriesPage() {
 
   // Load language and batches from localStorage
   useEffect(() => {
+    // 0. Strict Auth Guard: without login no entry in dashboard from anywhere
+    const token = typeof window !== "undefined" ? localStorage.getItem("agrifarm_jwt") : null;
+    if (!token) {
+      window.location.replace("/login");
+      return;
+    }
+
     const savedLang = localStorage.getItem("agrifarm_lang") as FisheriesLanguage;
     if (savedLang === "en" || savedLang === "hi") {
       setLang(savedLang);
@@ -366,6 +373,17 @@ export default function FisheriesPage() {
       );
     }, 500);
   };
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin mb-3" />
+        <p className="text-xs font-semibold text-slate-600">
+          {lang === "hi" ? "सत्र एवं मत्स्य पालन डेटा लोड हो रहा है..." : "Verifying session & loading fisheries hub..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col lg:flex-row">

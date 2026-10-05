@@ -53,6 +53,7 @@ interface ChatConversation {
 }
 
 export default function AiAssistantPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [lang, setLang] = useState<AiLanguage>("en");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -86,6 +87,14 @@ export default function AiAssistantPage() {
 
   // Load initial settings, batches, and conversation history
   useEffect(() => {
+    // 0. Strict Auth Guard: without login no entry in dashboard from anywhere
+    const token = typeof window !== "undefined" ? localStorage.getItem("agrifarm_jwt") : null;
+    if (!token) {
+      window.location.replace("/login");
+      return;
+    }
+    setIsAuthenticated(true);
+
     // 1. Language
     const savedLang = localStorage.getItem("agrifarm_lang") as AiLanguage;
     if (savedLang === "en" || savedLang === "hi") {
@@ -525,6 +534,17 @@ export default function AiAssistantPage() {
     selectedDomain === "fisheries"
       ? `Fish · ${selectedMode === "batch" ? (currentBatchName.split(" - ")[0] || "Batch 1") : "General AI"}`
       : `Poultry · ${selectedMode === "batch" ? (currentBatchName.split(" - ")[0] || "Batch 1") : "General AI"}`;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen w-full bg-white items-center justify-center">
+        <div className="w-10 h-10 border-4 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin mb-3" />
+        <p className="text-xs font-semibold text-slate-600">
+          {lang === "hi" ? "सत्र सत्यापित किया जा रहा है..." : "Verifying session..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full bg-white text-slate-900 overflow-hidden font-sans select-none">

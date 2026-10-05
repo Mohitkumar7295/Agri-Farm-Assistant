@@ -36,6 +36,8 @@ import {
   DashboardContent,
 } from "@/i18n/dashboardTranslations";
 import { formatFarmerName } from "@/i18n/nameTransliteration";
+import FarmWeatherCard from "@/components/FarmWeatherCard";
+import { FarmWeatherData } from "@/utils/weatherUtils";
 
 type SidebarNavKey =
   | "home"
@@ -56,14 +58,22 @@ interface UserProfile {
   villageCity?: string;
   state?: string;
   country?: string;
+  latitude?: number;
+  longitude?: number;
+  farmLocation?: {
+    latitude?: number;
+    longitude?: number;
+  };
 }
 
 export default function DashboardPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [lang, setLang] = useState<DashboardLanguage>("en");
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [activeNav, setActiveNav] = useState<SidebarNavKey>("home");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [liveWeather, setLiveWeather] = useState<FarmWeatherData | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<number[]>([]);
   const [activeTaskStatus, setActiveTaskStatus] = useState<Record<number, string>>({
     1: "completed",
@@ -72,8 +82,16 @@ export default function DashboardPage() {
     4: "pending",
   });
 
-  // Load language, theme, and user data on mount
+  // Strict Auth Guard and Initializer
   useEffect(() => {
+    // 0. Strict Auth Guard: without login no entry in dashboard from anywhere
+    const token = typeof window !== "undefined" ? localStorage.getItem("agrifarm_jwt") : null;
+    if (!token) {
+      window.location.replace("/login");
+      return;
+    }
+    setIsAuthenticated(true);
+
     // 1. Language
     const savedLang = localStorage.getItem("agrifarm_lang") as DashboardLanguage;
     if (savedLang && (savedLang === "en" || savedLang === "hi")) {
@@ -163,6 +181,11 @@ export default function DashboardPage() {
       window.location.href = "/advisory";
     } else if (key === "poultry") {
       window.location.href = "/poultry";
+    } else if (key === "weather") {
+      const el = document.getElementById("farm-weather-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
     }
   };
 
@@ -194,6 +217,17 @@ export default function DashboardPage() {
     { key: "helpSupport" as SidebarNavKey, label: content.nav.helpSupport, icon: HelpCircle },
     { key: "settings" as SidebarNavKey, label: content.nav.settings, icon: Settings },
   ];
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-[#07130e] flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin mb-3" />
+        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+          {lang === "hi" ? "सुरक्षित किसान सत्र सत्यापित किया जा रहा है..." : "Verifying secure farmer session..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-slate-100 flex flex-col lg:flex-row transition-colors duration-300">
@@ -488,17 +522,25 @@ export default function DashboardPage() {
             {/* Right: Weather, Notifications & Controls */}
             <div className="flex items-center flex-wrap gap-2.5 sm:gap-3">
               {/* Weather Widget */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-emerald-900/50 bg-white dark:bg-[#0c241a]/60 shadow-2xs text-xs">
+              <div
+                onClick={() => {
+                  setActiveNav("weather");
+                  const el = document.getElementById("farm-weather-section");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-emerald-900/50 bg-white dark:bg-[#0c241a]/60 shadow-2xs text-xs cursor-pointer hover:border-emerald-500/60 transition-colors"
+                title={lang === "hi" ? "फार्म मौसम अनुभाग पर जाएं" : "Jump to Farm Weather section"}
+              >
                 <CloudSun className="w-4 h-4 text-amber-500 shrink-0" />
                 <div className="flex items-center gap-1.5">
                   <span className="font-extrabold text-slate-900 dark:text-white">
-                    28°C
+                    {liveWeather ? `${Math.round(liveWeather.temperature)}°C` : "28°C"}
                   </span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
-                    • {content.header.weatherCondition}
+                    • {liveWeather?.weatherCondition || content.header.weatherCondition}
                   </span>
                   <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
-                    • {content.header.weatherCity}
+                    • {userProfile?.villageCity || content.header.weatherCity}
                   </span>
                 </div>
               </div>
@@ -643,6 +685,19 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          </section>
+
+          {/* ========================================================================= */}
+          {/* SECTION: LIVE FARM WEATHER TELEMETRY (OPEN-METEO)                         */}
+          {/* ========================================================================= */}
+          <section id="farm-weather-section" className="scroll-mt-6">
+            <FarmWeatherCard
+              latitude={userProfile?.latitude ?? userProfile?.farmLocation?.latitude ?? null}
+              longitude={userProfile?.longitude ?? userProfile?.farmLocation?.longitude ?? null}
+              farmName={userProfile?.villageCity || (lang === "hi" ? "आपका फार्म" : "Your Farm")}
+              lang={lang}
+              onWeatherLoaded={(data) => setLiveWeather(data)}
+            />
           </section>
 
           {/* ========================================================================= */}
