@@ -398,9 +398,13 @@ export default function LoginPage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         console.warn("Backend response notice:", errorData);
+        if (errorData?.message) {
+          setIsLoading(false);
+          setErrorMessage(errorData.message);
+          return;
+        }
       }
     } catch (apiError) {
-      // In offline or local fallback, preserve state so registration flow continues
       console.warn("Spring Boot backend connection note:", apiError);
     }
 
