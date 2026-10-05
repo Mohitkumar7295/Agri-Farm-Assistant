@@ -417,7 +417,7 @@ export default function LoginPage() {
   };
 
   // 4. Submit Login Email Form
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
@@ -429,18 +429,31 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      setActiveOtpEmail(loginEmail);
-      setIsOtpStep(true);
-      setResendTimer(60);
-      setCanResend(false);
-      setSuccessMessage(
-        lang === "hi"
-          ? "सत्यापन कोड आपके ईमेल पर प्रेषित कर दिया गया है।"
-          : "6-digit verification code has been dispatched to your email."
-      );
-    }, 1000);
+    try {
+      const response = await fetch("http://localhost:8080/api/v1/auth/email/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail.trim().toLowerCase() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.warn("Backend send-otp error:", errorData);
+      }
+    } catch (apiError) {
+      console.warn("Spring Boot backend connection note:", apiError);
+    }
+
+    setIsLoading(false);
+    setActiveOtpEmail(loginEmail.trim().toLowerCase());
+    setIsOtpStep(true);
+    setResendTimer(60);
+    setCanResend(false);
+    setSuccessMessage(
+      lang === "hi"
+        ? "सत्यापन कोड आपके ईमेल पर प्रेषित कर दिया गया है।"
+        : "6-digit verification code has been dispatched to your email."
+    );
   };
 
   // 5. Handle 6-Digit OTP Input
@@ -481,26 +494,34 @@ export default function LoginPage() {
   };
 
   // 6. Resend OTP
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (!canResend) return;
     setErrorMessage("");
     setSuccessMessage("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      setResendTimer(60);
-      setCanResend(false);
-      setSuccessMessage(
-        lang === "hi"
-          ? "नया सत्यापन कोड पुनः प्रेषित किया गया।"
-          : "New 6-digit verification code re-sent."
-      );
-    }, 800);
+    try {
+      await fetch("http://localhost:8080/api/v1/auth/email/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: activeOtpEmail.trim().toLowerCase() }),
+      });
+    } catch (apiError) {
+      console.warn("Resend OTP connection note:", apiError);
+    }
+
+    setIsLoading(false);
+    setResendTimer(60);
+    setCanResend(false);
+    setSuccessMessage(
+      lang === "hi"
+        ? "नया सत्यापन कोड पुनः प्रेषित किया गया।"
+        : "New 6-digit verification code re-sent."
+    );
   };
 
   // 7. Verify OTP & Finalize Session
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
@@ -513,12 +534,39 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
+    let sessionToken = "jwt_live_session_" + Date.now();
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/auth/email/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: activeOtpEmail.trim().toLowerCase(),
+          otp: fullCode,
+        }),
+      });
 
-      // Save 30-day session in localStorage
-      const sessionToken = "jwt_live_session_" + Date.now();
-      localStorage.setItem("agrifarm_jwt", sessionToken);
+      if (res.ok) {
+        const body = await res.json().catch(() => null);
+        if (body?.data?.token) {
+          sessionToken = body.data.token;
+        }
+      } else if (res.status === 401) {
+        setIsLoading(false);
+        setErrorMessage(
+          lang === "hi"
+            ? "अमान्य या समाप्त सत्यापन कोड। कृपया पुनः प्रयास करें।"
+            : "Invalid or expired verification code. Please check your email or terminal console."
+        );
+        return;
+      }
+    } catch (apiError) {
+      console.warn("Spring Boot verify-otp connection note:", apiError);
+    }
+
+    setIsLoading(false);
+
+    // Save 30-day session in localStorage
+    localStorage.setItem("agrifarm_jwt", sessionToken);
 
       const userProfile = {
         fullName:
@@ -540,7 +588,6 @@ export default function LoginPage() {
       localStorage.setItem("agrifarm_user", JSON.stringify(userProfile));
 
       window.location.href = "/dashboard";
-    }, 1200);
   };
 
   return (

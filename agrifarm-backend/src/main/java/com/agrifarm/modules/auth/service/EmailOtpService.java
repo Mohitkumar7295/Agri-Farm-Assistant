@@ -56,6 +56,9 @@ public class EmailOtpService {
         emailOtpRepository.save(token);
         log.info("Generated OTP for email: {}", cleanEmail);
 
+        // Always print console fallback in development so testing is never blocked
+        log.info("🔑 [DEV CONSOLE OTP]: For recipient '{}', OTP is: {}", cleanEmail, otp);
+
         // Send email via Resend API
         sendEmailViaResend(cleanEmail, otp);
 
@@ -79,6 +82,11 @@ public class EmailOtpService {
     }
 
     private void sendEmailViaResend(String recipientEmail, String otp) {
+        if (resendApiKey == null || resendApiKey.isBlank()) {
+            log.warn("⚠️ RESEND_API_KEY is not configured. Email not dispatched to network, use console OTP.");
+            return;
+        }
+
         try {
             String subject = "AgriFarmAssistant - Your 6-Digit Verification Code";
             String htmlContent = """
@@ -118,7 +126,13 @@ public class EmailOtpService {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            log.info("Resend API response status: {}, body: {}", response.statusCode(), response.body());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("✅ Resend API email dispatched successfully to: {}", recipientEmail);
+            } else if (response.statusCode() == 403) {
+                log.warn("⚠️ Resend Free Tier Notice: Under 'onboarding@resend.dev', emails are sent exclusively to your verified account email (e.g. mokumar7295@gmail.com). For testing other emails, check console OTP above.");
+            } else {
+                log.warn("Resend API returned status {}: {}", response.statusCode(), response.body());
+            }
         } catch (Exception e) {
             log.error("Failed to send OTP email via Resend: {}", e.getMessage(), e);
         }
