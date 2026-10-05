@@ -1,8 +1,3 @@
-# Read Me First
-The following was discovered as part of building this project:
-
-* The original package name 'agrifarm.agrifarm-backend' is invalid and this project uses 'agrifarm.agrifarm_backend' instead.
-
 # Getting Started
 
 ### Reference Documentation
@@ -13,6 +8,13 @@ For further reference, please consider the following sections:
 * [Create an OCI image](https://docs.spring.io/spring-boot/4.1.1/maven-plugin/build-image.html)
 * [Spring Web](https://docs.spring.io/spring-boot/4.1.1/reference/web/servlet.html)
 * [Spring Security](https://docs.spring.io/spring-boot/4.1.1/reference/web/spring-security.html)
+* [Spring Data JPA](https://docs.spring.io/spring-boot/4.1.1/reference/data/sql.html#data.sql.jpa-and-spring-data)
+* [Flyway Migration](https://docs.spring.io/spring-boot/4.1.1/how-to/data-initialization.html#howto.data-initialization.migration-tool.flyway)
+* [Spring Data Redis (Access+Driver)](https://docs.spring.io/spring-boot/4.1.1/reference/data/nosql.html#data.nosql.redis)
+* [Java Mail Sender](https://docs.spring.io/spring-boot/4.1.1/reference/io/email.html)
+* [Spring Batch](https://docs.spring.io/spring-boot/4.1.1/how-to/batch.html)
+* [Validation](https://docs.spring.io/spring-boot/4.1.1/reference/io/validation.html)
+* [Spring Boot Actuator](https://docs.spring.io/spring-boot/4.1.1/reference/actuator/index.html)
 
 ### Guides
 The following guides illustrate how to use some features concretely:
@@ -23,6 +25,11 @@ The following guides illustrate how to use some features concretely:
 * [Securing a Web Application](https://spring.io/guides/gs/securing-web/)
 * [Spring Boot and OAuth2](https://spring.io/guides/tutorials/spring-boot-oauth2/)
 * [Authenticating a User with LDAP](https://spring.io/guides/gs/authenticating-ldap/)
+* [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
+* [Messaging with Redis](https://spring.io/guides/gs/messaging-redis/)
+* [Creating a Batch Service](https://spring.io/guides/gs/batch-processing/)
+* [Validation](https://spring.io/guides/gs/validating-form-input/)
+* [Building a RESTful Web Service with Spring Boot Actuator](https://spring.io/guides/gs/actuator-service/)
 
 ### Maven Parent overrides
 
