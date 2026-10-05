@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -119,6 +119,20 @@ export default function DashboardPage() {
         console.error("Failed to parse user profile:", err);
       }
     }
+  }, []);
+
+  const handleWeatherLoaded = useCallback((data: FarmWeatherData) => {
+    setLiveWeather((prev) => {
+      if (
+        prev &&
+        prev.temperature === data.temperature &&
+        prev.weatherCode === data.weatherCode &&
+        prev.humidity === data.humidity
+      ) {
+        return prev;
+      }
+      return data;
+    });
   }, []);
 
   const toggleLanguage = () => {
@@ -696,7 +710,7 @@ export default function DashboardPage() {
               longitude={userProfile?.longitude ?? userProfile?.farmLocation?.longitude ?? null}
               farmName={userProfile?.villageCity || (lang === "hi" ? "आपका फार्म" : "Your Farm")}
               lang={lang}
-              onWeatherLoaded={(data) => setLiveWeather(data)}
+              onWeatherLoaded={handleWeatherLoaded}
             />
           </section>
 

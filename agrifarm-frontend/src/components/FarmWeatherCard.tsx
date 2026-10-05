@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   CloudSun,
@@ -37,6 +37,12 @@ export default function FarmWeatherCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
+  // Keep callback in ref so changes in parent render do not trigger fetchWeather recreation
+  const onWeatherLoadedRef = useRef(onWeatherLoaded);
+  useEffect(() => {
+    onWeatherLoadedRef.current = onWeatherLoaded;
+  }, [onWeatherLoaded]);
+
   const fetchWeather = useCallback(async (lat: number, lng: number, forceRefresh = false) => {
     const cacheKey = `agrifarm_weather_${lat.toFixed(4)}_${lng.toFixed(4)}`;
     
@@ -51,7 +57,7 @@ export default function FarmWeatherCard({
             setWeather(data);
             setErrorMessage(null);
             setLastRefreshed(new Date(timestamp));
-            if (onWeatherLoaded) onWeatherLoaded(data);
+            if (onWeatherLoadedRef.current) onWeatherLoadedRef.current(data);
             return;
           }
         }
@@ -95,8 +101,8 @@ export default function FarmWeatherCard({
         // Ignore sessionStorage quota error
       }
 
-      if (onWeatherLoaded) {
-        onWeatherLoaded(data);
+      if (onWeatherLoadedRef.current) {
+        onWeatherLoadedRef.current(data);
       }
     } catch (err) {
       console.error("Failed to load farm weather:", err);
@@ -108,7 +114,7 @@ export default function FarmWeatherCard({
     } finally {
       setIsLoading(false);
     }
-  }, [lang, onWeatherLoaded]);
+  }, [lang]);
 
   useEffect(() => {
     if (latitude != null && longitude != null && !isNaN(latitude) && !isNaN(longitude)) {
