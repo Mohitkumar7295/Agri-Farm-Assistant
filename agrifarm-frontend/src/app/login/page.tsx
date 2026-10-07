@@ -81,6 +81,8 @@ export default function LoginPage() {
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [resendTimer, setResendTimer] = useState<number>(60);
   const [canResend, setCanResend] = useState<boolean>(false);
+  const [sandboxDevOtp, setSandboxDevOtp] = useState<string | null>(null);
+  const [notRegisteredNotice, setNotRegisteredNotice] = useState<boolean>(false);
 
   // Status & Feedback States
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -167,6 +169,8 @@ export default function LoginPage() {
     setErrorMessage("");
     setSuccessMessage("");
     setLocationStatusMessage("");
+    setSandboxDevOtp(null);
+    setNotRegisteredNotice(false);
     setOtpDigits(["", "", "", "", "", ""]);
   };
 
@@ -404,29 +408,55 @@ export default function LoginPage() {
         body: JSON.stringify(registrationPayload),
       });
 
+      const responseBody = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.warn("Backend response notice:", errorData);
-        if (errorData?.message) {
-          setIsLoading(false);
-          setErrorMessage(errorData.message);
+        setIsLoading(false);
+        if (response.status === 409 || responseBody?.message?.toLowerCase().includes("already registered")) {
+          setErrorMessage(
+            lang === "hi"
+              ? `ईमेल '${regEmail.trim()}' पहले से पंजीकृत है। कृपया सीधे लॉगिन करें।`
+              : `An account with email '${regEmail.trim()}' is already registered. Please sign in instead.`
+          );
           return;
         }
+        setErrorMessage(
+          responseBody?.message ||
+          (lang === "hi" ? "पंजीकरण में त्रुटि हुई। कृपया पुनः प्रयास करें।" : "Registration failed. Please check inputs and retry.")
+        );
+        return;
       }
+
+      const dataResult = responseBody?.data;
+      if (dataResult?.devOtp) {
+        setSandboxDevOtp(dataResult.devOtp);
+      } else {
+        setSandboxDevOtp(null);
+      }
+
+      setIsLoading(false);
+      setActiveOtpEmail(regEmail.trim().toLowerCase());
+      setIsOtpStep(true);
+      setResendTimer(60);
+      setCanResend(false);
+      setSuccessMessage(
+        dataResult?.deliveredViaNetwork
+          ? (lang === "hi"
+              ? "पंजीकरण सफल! 6-अंकीय सत्यापन कोड आपके ईमेल पर भेज दिया गया है।"
+              : "Registration details saved! 6-digit verification code dispatched to your email.")
+          : (lang === "hi"
+              ? "पंजीकरण सफल! आपका 6-अंकीय सत्यापन कोड नीचे सुरक्षित रूप से उपलब्ध है।"
+              : "Registration details saved! Your 6-digit verification code is ready below.")
+      );
     } catch (apiError) {
       console.warn("Spring Boot backend connection note:", apiError);
+      setIsLoading(false);
+      setErrorMessage(
+        lang === "hi"
+          ? "सर्वर से संपर्क नहीं हो सका। कृपया सुनिश्चित करें कि बैकएंड पोर्ट 8080 पर चल रहा है।"
+          : "Cannot connect to server. Please verify backend is running on port 8080."
+      );
     }
-
-    setIsLoading(false);
-    setActiveOtpEmail(regEmail);
-    setIsOtpStep(true);
-    setResendTimer(60);
-    setCanResend(false);
-    setSuccessMessage(
-      lang === "hi"
-        ? "पंजीकरण विवरण सहेज लिया गया। 6-अंकीय सत्यापन कोड आपके ईमेल पर प्रेषित कर दिया गया है।"
-        : "Registration details saved! 6-digit verification code has been dispatched to your email."
-    );
   };
 
   // 4. Submit Login Email Form
@@ -434,39 +464,80 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+    setSandboxDevOtp(null);
+    setNotRegisteredNotice(false);
 
     if (!isValidEmail(loginEmail)) {
       setErrorMessage(content.errors.invalidEmail);
       return;
     }
 
+    const cleanEmail = loginEmail.trim().toLowerCase();
     setIsLoading(true);
 
     try {
       const response = await fetch("http://localhost:8080/api/v1/auth/email/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail.trim().toLowerCase() }),
+        body: JSON.stringify({ email: cleanEmail }),
       });
 
+      const responseBody = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.warn("Backend send-otp error:", errorData);
+        setIsLoading(false);
+        // STRICT MULTI-USER REQUIREMENT: Without register, no login! First register!
+        if (
+          response.status === 404 ||
+          responseBody?.message?.toLowerCase().includes("no account found") ||
+          responseBody?.message?.toLowerCase().includes("register first")
+        ) {
+          setNotRegisteredNotice(true);
+          setErrorMessage(
+            lang === "hi"
+              ? `ईमेल '${cleanEmail}' से कोई खाता पंजीकृत नहीं है। बिना पंजीकरण के लॉगिन संभव नहीं है। कृपया पहले नया खाता बनाएं।`
+              : `No registered account found for '${cleanEmail}'. Login is not permitted without prior registration. Please register first.`
+          );
+          return;
+        }
+
+        setErrorMessage(
+          responseBody?.message ||
+          (lang === "hi" ? "लॉगिन कोड भेजने में त्रुटि हुई।" : "Failed to dispatch verification code.")
+        );
+        return;
       }
+
+      const dataResult = responseBody?.data;
+      if (dataResult?.devOtp) {
+        setSandboxDevOtp(dataResult.devOtp);
+      } else {
+        setSandboxDevOtp(null);
+      }
+
+      setIsLoading(false);
+      setActiveOtpEmail(cleanEmail);
+      setIsOtpStep(true);
+      setResendTimer(60);
+      setCanResend(false);
+      setSuccessMessage(
+        dataResult?.deliveredViaNetwork
+          ? (lang === "hi"
+              ? "6-अंकीय सत्यापन कोड आपके ईमेल पर भेज दिया गया है।"
+              : "6-digit verification code has been dispatched to your email.")
+          : (lang === "hi"
+              ? "सत्यापन कोड तैयार है। नीचे दिए गए कोड से लॉगिन करें।"
+              : "Verification code ready. Use the 6-digit code displayed below to sign in.")
+      );
     } catch (apiError) {
       console.warn("Spring Boot backend connection note:", apiError);
+      setIsLoading(false);
+      setErrorMessage(
+        lang === "hi"
+          ? "सर्वर से संपर्क नहीं हो सका। कृपया बैकएंड कनेक्शन जांचें।"
+          : "Cannot connect to server. Please check backend connection."
+      );
     }
-
-    setIsLoading(false);
-    setActiveOtpEmail(loginEmail.trim().toLowerCase());
-    setIsOtpStep(true);
-    setResendTimer(60);
-    setCanResend(false);
-    setSuccessMessage(
-      lang === "hi"
-        ? "सत्यापन कोड आपके ईमेल पर प्रेषित कर दिया गया है।"
-        : "6-digit verification code has been dispatched to your email."
-    );
   };
 
   // 5. Handle 6-Digit OTP Input
@@ -514,11 +585,15 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await fetch("http://localhost:8080/api/v1/auth/email/send-otp", {
+      const res = await fetch("http://localhost:8080/api/v1/auth/email/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: activeOtpEmail.trim().toLowerCase() }),
       });
+      const responseBody = await res.json().catch(() => null);
+      if (responseBody?.data?.devOtp) {
+        setSandboxDevOtp(responseBody.data.devOtp);
+      }
     } catch (apiError) {
       console.warn("Resend OTP connection note:", apiError);
     }
@@ -548,6 +623,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     let sessionToken = "jwt_live_session_" + Date.now();
+    let backendUser: any = null;
+
     try {
       const res = await fetch("http://localhost:8080/api/v1/auth/email/verify-otp", {
         method: "POST",
@@ -558,49 +635,63 @@ export default function LoginPage() {
         }),
       });
 
-      if (res.ok) {
-        const body = await res.json().catch(() => null);
-        if (body?.data?.token) {
-          sessionToken = body.data.token;
-        }
-      } else if (res.status === 401) {
+      const body = await res.json().catch(() => null);
+
+      if (!res.ok) {
         setIsLoading(false);
         setErrorMessage(
-          lang === "hi"
+          body?.message ||
+          (lang === "hi"
             ? "अमान्य या समाप्त सत्यापन कोड। कृपया पुनः प्रयास करें।"
-            : "Invalid or expired verification code. Please check your email or terminal console."
+            : "Invalid or expired verification code. Please check code and try again.")
         );
         return;
       }
+
+      if (body?.data?.token) {
+        sessionToken = body.data.token;
+      }
+      if (body?.data?.user) {
+        backendUser = body.data.user;
+      }
     } catch (apiError) {
       console.warn("Spring Boot verify-otp connection note:", apiError);
+      setIsLoading(false);
+      setErrorMessage(
+        lang === "hi"
+          ? "सत्यापन के दौरान सर्वर त्रुटि हुई।"
+          : "Server connection failed during OTP verification."
+      );
+      return;
     }
 
     setIsLoading(false);
 
-    // Save 30-day session in localStorage
+    // Save session token in localStorage
     localStorage.setItem("agrifarm_jwt", sessionToken);
 
-      const userProfile = {
-        fullName:
-          activeTab === "register"
-            ? regFullName.replace(/[()[\]{}]/g, "").trim()
-            : "Ramu Kisan",
-        email: activeOtpEmail,
-        mobileNumber: activeTab === "register" ? regMobile : "",
-        streetAddress: activeTab === "register" ? regAddress : "Plot 42, Green Valley Farm Road",
-        country: activeTab === "register" ? regCountry : "India",
-        state: activeTab === "register" ? regState : "Madhya Pradesh",
-        district: activeTab === "register" ? regDistrict : "Indore",
-        villageCity: activeTab === "register" ? regVillageCity : "Sanwer",
-        pincode: activeTab === "register" ? regPincode : "452010",
-        latitude: activeTab === "register" ? regLatitude : 22.9747,
-        longitude: activeTab === "register" ? regLongitude : 75.8022,
-        registeredAt: new Date().toISOString(),
-      };
-      localStorage.setItem("agrifarm_user", JSON.stringify(userProfile));
+    // Store user data STRICTLY from MongoDB record - NO dummy "Ramu" or fake data!
+    const userProfile = {
+      id: backendUser?.id || undefined,
+      fullName:
+        backendUser?.fullName ||
+        (activeTab === "register" ? regFullName.trim() : "Farmer"),
+      email: backendUser?.email || activeOtpEmail,
+      mobileNumber: backendUser?.mobileNumber || (activeTab === "register" ? regMobile.trim() : ""),
+      streetAddress: backendUser?.streetAddress || (activeTab === "register" ? regAddress.trim() : ""),
+      country: backendUser?.country || (activeTab === "register" ? regCountry.trim() : "India"),
+      state: backendUser?.state || (activeTab === "register" ? regState.trim() : ""),
+      district: backendUser?.district || (activeTab === "register" ? regDistrict.trim() : ""),
+      villageCity: backendUser?.villageOrCity || (activeTab === "register" ? regVillageCity.trim() : ""),
+      pincode: backendUser?.pincode || (activeTab === "register" ? regPincode.trim() : ""),
+      latitude: backendUser?.latitude ?? (activeTab === "register" ? regLatitude : null),
+      longitude: backendUser?.longitude ?? (activeTab === "register" ? regLongitude : null),
+      role: backendUser?.role || "FARMER",
+      registeredAt: backendUser?.createdAt || new Date().toISOString(),
+    };
+    localStorage.setItem("agrifarm_user", JSON.stringify(userProfile));
 
-      window.location.href = "/dashboard";
+    window.location.href = "/dashboard";
   };
 
   return (
@@ -744,6 +835,39 @@ export default function LoginPage() {
                   {content.otpStep.changeEmail}
                 </button>
               </div>
+
+              {/* Sandbox Dev OTP Helper Banner */}
+              {sandboxDevOtp && (
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-xs">
+                  <div className="flex items-center justify-between font-bold mb-2">
+                    <span className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+                      <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span>{lang === "hi" ? "सत्यापन कोड (परीक्षण मोड):" : "Verification Code (Testing / Dev Mode):"}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const digits = sandboxDevOtp.split("").slice(0, 6);
+                        setOtpDigits(digits);
+                        otpInputRefs.current[5]?.focus();
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] shadow-2xs transition-all cursor-pointer"
+                    >
+                      {lang === "hi" ? "कोड ऑटो-भरें" : "Auto-fill Code"}
+                    </button>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                    <span className="font-mono text-xl font-black tracking-widest text-[#0F5132] dark:text-emerald-300 bg-white dark:bg-[#071911] px-3 py-1 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                      {sandboxDevOtp}
+                    </span>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300/90 leading-tight">
+                      {lang === "hi"
+                        ? "Resend सैंडबॉक्स मोड के तहत ईमेल केवल स्वामी के इनबॉक्स में जाता है। अन्य सभी पतों के लिए यह कोड सीधे उपयोग करें।"
+                        : "Resend free sandbox limits network delivery to account owner. For other test emails, use this code directly."}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* 6 Individual Digit Inputs */}
               <div>
@@ -1169,6 +1293,37 @@ export default function LoginPage() {
                   </>
                 )}
               </button>
+
+              {/* Not Registered Helper Banner */}
+              {notRegisteredNotice && (
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>
+                      {lang === "hi"
+                        ? "इस ईमेल से कोई खाता पंजीकृत नहीं है। केवल पंजीकृत किसान ही लॉगिन कर सकते हैं।"
+                        : "No account found for this email. Only registered farmers may sign in."}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                    {lang === "hi"
+                      ? "कृषि फार्म सहायक 1,000+ किसानों द्वारा सुरक्षित उपयोग किया जाता है। कृपया पहले अपना निःशुल्क खाता बनाएं।"
+                      : "AgriFarmAssistant is used by 1,000+ farmers with isolated accounts. Please create your account first."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegEmail(loginEmail.trim().toLowerCase());
+                      handleTabSwitch("register");
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-2xs transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>{lang === "hi" ? "नया खाता बनाएं (1 मिनट)" : "Register New Account (1 Minute)"}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               <div className="text-center pt-2">
                 <button

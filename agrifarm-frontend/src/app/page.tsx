@@ -51,7 +51,14 @@ export default function LandingPage() {
   const headerRef = useRef<HTMLElement | null>(null);
   const videoPlayerRef = useRef<HTMLVideoElement | null>(null);
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("agrifarm_jwt") : null;
+    if (token) {
+      setIsLoggedIn(true);
+    }
+
     const savedLang = localStorage.getItem("agrifarm_lang") as SupportedLanguage;
     if (savedLang && (savedLang === "en" || savedLang === "hi")) {
       setLang(savedLang);
@@ -232,21 +239,46 @@ export default function LandingPage() {
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-emerald-800" />}
             </button>
 
-            {/* Login Button */}
-            <Link
-              href="/login?tab=login"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-slate-300 dark:border-emerald-800 bg-white dark:bg-emerald-950/40 text-slate-800 dark:text-slate-100 hover:border-emerald-500 hover:text-[#0F5132] dark:hover:text-emerald-300 transition-all shadow-2xs active:scale-[0.98]"
-            >
-              <span>{content.nav.signIn}</span>
-            </Link>
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs sm:text-sm font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-xs transition-all active:scale-[0.98]"
+                >
+                  <span>{lang === "hi" ? "डैशबोर्ड खोलें" : "Dashboard"}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem("agrifarm_jwt");
+                    localStorage.removeItem("agrifarm_user");
+                    setIsLoggedIn(false);
+                    window.location.reload();
+                  }}
+                  className="inline-flex items-center justify-center px-3.5 py-2 rounded-full text-xs font-semibold border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <span>{lang === "hi" ? "लॉग आउट" : "Log Out"}</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Login Button */}
+                <Link
+                  href="/login?tab=login"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-slate-300 dark:border-emerald-800 bg-white dark:bg-emerald-950/40 text-slate-800 dark:text-slate-100 hover:border-emerald-500 hover:text-[#0F5132] dark:hover:text-emerald-300 transition-all shadow-2xs active:scale-[0.98]"
+                >
+                  <span>{content.nav.signIn}</span>
+                </Link>
 
-            {/* Register Button */}
-            <Link
-              href="/login?tab=register"
-              className="inline-flex items-center justify-center px-5 py-2 rounded-full text-xs sm:text-sm font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-xs transition-all active:scale-[0.98]"
-            >
-              <span>{content.nav.register}</span>
-            </Link>
+                {/* Register Button */}
+                <Link
+                  href="/login?tab=register"
+                  className="inline-flex items-center justify-center px-5 py-2 rounded-full text-xs sm:text-sm font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-xs transition-all active:scale-[0.98]"
+                >
+                  <span>{content.nav.register}</span>
+                </Link>
+              </>
+            )}
 
             {/* Mobile Hamburger Toggle */}
             <button

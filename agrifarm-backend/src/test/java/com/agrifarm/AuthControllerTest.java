@@ -26,6 +26,9 @@ class AuthControllerTest {
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired
+    private com.agrifarm.modules.auth.repository.UserRepository userRepository;
+
     @BeforeEach
     void setup() {
         this.mockMvc = MockMvcBuilders.standaloneSetup(authController).build();
@@ -33,11 +36,12 @@ class AuthControllerTest {
 
     @Test
     void testRegistrationEndpointSuccess() throws Exception {
+        String testEmail = "test.clean." + System.currentTimeMillis() + "@agrifarm.org";
         Map<String, Object> payload = new HashMap<>();
-        payload.put("fullName", "Ramesh Patel");
-        payload.put("email", "ramesh.patel." + System.currentTimeMillis() + "@gmail.com");
+        payload.put("fullName", "Test Farmer");
+        payload.put("email", testEmail);
         payload.put("mobileNumber", "9876543210");
-        payload.put("streetAddress", "Plot 42, Green Valley Farm Road");
+        payload.put("streetAddress", "Survey No 12, Farm Lane");
         payload.put("country", "India");
         payload.put("state", "Madhya Pradesh");
         payload.put("district", "Indore");
@@ -47,15 +51,19 @@ class AuthControllerTest {
         payload.put("longitude", 75.8022);
         payload.put("termsAgreed", true);
 
-        mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(payload)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.streetAddress").value("Plot 42, Green Valley Farm Road"))
-                .andExpect(jsonPath("$.data.pincode").value("452010"))
-                .andExpect(jsonPath("$.data.latitude").value(22.9747))
-                .andExpect(jsonPath("$.data.longitude").value(75.8022));
+        try {
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(payload)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.user.streetAddress").value("Survey No 12, Farm Lane"))
+                    .andExpect(jsonPath("$.data.user.pincode").value("452010"))
+                    .andExpect(jsonPath("$.data.user.latitude").value(22.9747))
+                    .andExpect(jsonPath("$.data.user.longitude").value(75.8022));
+        } finally {
+            userRepository.findByEmail(testEmail).ifPresent(u -> userRepository.deleteById(u.getId()));
+        }
     }
 
     @Test

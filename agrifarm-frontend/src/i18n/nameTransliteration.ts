@@ -122,7 +122,7 @@ export function hasDevanagari(text: string): boolean {
 
 // Convert English name to Devanagari Hindi
 export function transliterateToHindi(name: string): string {
-  if (!name || !name.trim()) return "रामू किसान";
+  if (!name || !name.trim()) return "किसान साथी";
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
 
@@ -151,7 +151,7 @@ export function transliterateToHindi(name: string): string {
 
 // Convert Devanagari Hindi name to English Latin
 export function transliterateToEnglish(name: string): string {
-  if (!name || !name.trim()) return "Ramu Kisan";
+  if (!name || !name.trim()) return "Farmer";
   const trimmed = name.trim();
 
   // Full phrase match
@@ -330,8 +330,8 @@ export function formatFarmerName(
   storedName: string | undefined | null,
   lang: "en" | "hi"
 ): string {
-  const defaultEn = "Ramu Kisan";
-  const defaultHi = "रामू किसान";
+  const defaultEn = "Farmer";
+  const defaultHi = "किसान साथी";
 
   if (!storedName || !storedName.trim()) {
     return lang === "hi" ? defaultHi : defaultEn;

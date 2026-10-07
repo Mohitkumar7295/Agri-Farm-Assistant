@@ -43,6 +43,9 @@ public class User {
     private Boolean termsAgreed;
 
     @Builder.Default
+    private Boolean emailVerified = false;
+
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Builder.Default

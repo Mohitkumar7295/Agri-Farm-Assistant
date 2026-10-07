@@ -35,6 +35,7 @@ import {
   Thermometer,
   Droplets,
   ClipboardList,
+  CheckSquare,
 } from "lucide-react";
 import {
   PoultryFlock,
@@ -505,7 +506,15 @@ export default function PoultryPage() {
             </div>
 
             <Link
-              href="/dashboard"
+              href="/tasks"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
+            >
+              <CheckSquare className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>{lang === "hi" ? "दैनिक कार्य (Tasks)" : "Daily Tasks"}</span>
+            </Link>
+
+            <Link
+              href="/weather"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
             >
               <CloudSun className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -513,7 +522,7 @@ export default function PoultryPage() {
             </Link>
 
             <Link
-              href="/dashboard"
+              href="/alerts"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
             >
               <Bell className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -521,7 +530,7 @@ export default function PoultryPage() {
             </Link>
 
             <Link
-              href="/dashboard"
+              href="/expense"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
             >
               <Receipt className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -529,7 +538,7 @@ export default function PoultryPage() {
             </Link>
 
             <Link
-              href="/dashboard"
+              href="/help"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
             >
               <HelpCircle className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -537,7 +546,7 @@ export default function PoultryPage() {
             </Link>
 
             <Link
-              href="/dashboard"
+              href="/settings"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:text-[#0F5132] hover:bg-emerald-50 transition-colors"
             >
               <Settings className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -646,6 +655,15 @@ export default function PoultryPage() {
                 </div>
 
                 <Link
+                  href="/tasks"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <CheckSquare className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "दैनिक कार्य (Tasks)" : "Daily Tasks"}</span>
+                </Link>
+
+                <Link
                   href="/fisheries"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
@@ -655,12 +673,57 @@ export default function PoultryPage() {
                 </Link>
 
                 <Link
+                  href="/weather"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <CloudSun className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "मौसम" : "Weather"}</span>
+                </Link>
+
+                <Link
+                  href="/alerts"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <Bell className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "अलर्ट्स" : "Alerts"}</span>
+                </Link>
+
+                <Link
+                  href="/expense"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <Receipt className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "खर्च" : "Expense"}</span>
+                </Link>
+
+                <Link
                   href="/advisory"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
                 >
                   <Bot className="w-4 h-4 text-emerald-700" />
                   <span>{lang === "hi" ? "एआई सहायक" : "AI Assistant"}</span>
+                </Link>
+
+                <Link
+                  href="/help"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <HelpCircle className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "सहायता" : "Help & Support"}</span>
+                </Link>
+
+                <Link
+                  href="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50"
+                >
+                  <Settings className="w-4 h-4 text-emerald-700" />
+                  <span>{lang === "hi" ? "सेटिंग्स" : "Settings"}</span>
                 </Link>
               </nav>
             </div>

@@ -29,6 +29,7 @@ import {
   Calendar,
   Sparkles,
   ArrowUpRight,
+  CheckSquare,
 } from "lucide-react";
 import {
   dashboardTranslations,
@@ -36,14 +37,13 @@ import {
   DashboardContent,
 } from "@/i18n/dashboardTranslations";
 import { formatFarmerName } from "@/i18n/nameTransliteration";
-import FarmWeatherCard from "@/components/FarmWeatherCard";
-import { FarmWeatherData } from "@/utils/weatherUtils";
 
 type SidebarNavKey =
   | "home"
   | "aiAssistant"
   | "fisheries"
   | "poultry"
+  | "tasks"
   | "weather"
   | "alerts"
   | "expense"
@@ -73,14 +73,6 @@ export default function DashboardPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [activeNav, setActiveNav] = useState<SidebarNavKey>("home");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [liveWeather, setLiveWeather] = useState<FarmWeatherData | null>(null);
-  const [dismissedAlerts, setDismissedAlerts] = useState<number[]>([]);
-  const [activeTaskStatus, setActiveTaskStatus] = useState<Record<number, string>>({
-    1: "completed",
-    2: "completed",
-    3: "in_progress",
-    4: "pending",
-  });
 
   // Strict Auth Guard and Initializer
   useEffect(() => {
@@ -119,20 +111,6 @@ export default function DashboardPage() {
         console.error("Failed to parse user profile:", err);
       }
     }
-  }, []);
-
-  const handleWeatherLoaded = useCallback((data: FarmWeatherData) => {
-    setLiveWeather((prev) => {
-      if (
-        prev &&
-        prev.temperature === data.temperature &&
-        prev.weatherCode === data.weatherCode &&
-        prev.humidity === data.humidity
-      ) {
-        return prev;
-      }
-      return data;
-    });
   }, []);
 
   const toggleLanguage = () => {
@@ -184,7 +162,7 @@ export default function DashboardPage() {
       .filter(Boolean)
       .slice(0, 2)
       .join("")
-      .toUpperCase() || (lang === "hi" ? "रा" : "RK");
+      .toUpperCase() || (lang === "hi" ? "कि" : "FA");
 
   const handleNavClick = (key: SidebarNavKey) => {
     setActiveNav(key);
@@ -195,29 +173,19 @@ export default function DashboardPage() {
       window.location.href = "/advisory";
     } else if (key === "poultry") {
       window.location.href = "/poultry";
+    } else if (key === "tasks") {
+      window.location.href = "/tasks";
     } else if (key === "weather") {
-      const el = document.getElementById("farm-weather-section");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
-      }
+      window.location.href = "/weather";
+    } else if (key === "alerts") {
+      window.location.href = "/alerts";
+    } else if (key === "expense") {
+      window.location.href = "/expense";
+    } else if (key === "helpSupport") {
+      window.location.href = "/help";
+    } else if (key === "settings") {
+      window.location.href = "/settings";
     }
-  };
-
-  const handleDismissAlert = (alertIndex: number) => {
-    setDismissedAlerts((prev) => [...prev, alertIndex]);
-  };
-
-  const toggleTask = (taskId: number) => {
-    setActiveTaskStatus((prev) => {
-      const current = prev[taskId];
-      const next =
-        current === "completed"
-          ? "in_progress"
-          : current === "in_progress"
-          ? "pending"
-          : "completed";
-      return { ...prev, [taskId]: next };
-    });
   };
 
   const navItems = [
@@ -225,6 +193,7 @@ export default function DashboardPage() {
     { key: "aiAssistant" as SidebarNavKey, label: content.nav.aiAssistant, icon: Bot },
     { key: "fisheries" as SidebarNavKey, label: content.nav.fisheries, icon: Waves },
     { key: "poultry" as SidebarNavKey, label: content.nav.poultry, icon: Feather },
+    { key: "tasks" as SidebarNavKey, label: content.nav.tasks || (lang === "hi" ? "दैनिक कार्य (Tasks)" : "Daily Tasks"), icon: CheckSquare },
     { key: "weather" as SidebarNavKey, label: content.nav.weather, icon: CloudSun },
     { key: "alerts" as SidebarNavKey, label: content.nav.alerts, icon: Bell, badge: "3" },
     { key: "expense" as SidebarNavKey, label: content.nav.expense, icon: Receipt },
@@ -536,38 +505,31 @@ export default function DashboardPage() {
             {/* Right: Weather, Notifications & Controls */}
             <div className="flex items-center flex-wrap gap-2.5 sm:gap-3">
               {/* Weather Widget */}
-              <div
-                onClick={() => {
-                  setActiveNav("weather");
-                  const el = document.getElementById("farm-weather-section");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
+              <Link
+                href="/weather"
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-emerald-900/50 bg-white dark:bg-[#0c241a]/60 shadow-2xs text-xs cursor-pointer hover:border-emerald-500/60 transition-colors"
-                title={lang === "hi" ? "फार्म मौसम अनुभाग पर जाएं" : "Jump to Farm Weather section"}
+                title={lang === "hi" ? "मौसम केंद्र पर जाएं" : "Go to Farm Weather"}
               >
                 <CloudSun className="w-4 h-4 text-amber-500 shrink-0" />
                 <div className="flex items-center gap-1.5">
                   <span className="font-extrabold text-slate-900 dark:text-white">
-                    {liveWeather ? `${Math.round(liveWeather.temperature)}°C` : "28°C"}
-                  </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
-                    • {liveWeather?.weatherCondition || content.header.weatherCondition}
+                    {lang === "hi" ? "मौसम केंद्र" : "Weather"}
                   </span>
                   <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
                     • {userProfile?.villageCity || content.header.weatherCity}
                   </span>
                 </div>
-              </div>
+              </Link>
 
               {/* Notification Bell */}
-              <button
-                type="button"
+              <Link
+                href="/alerts"
                 title={content.header.notificationsTooltip}
                 className="relative p-2 rounded-xl border border-slate-200 dark:border-emerald-900/50 bg-white dark:bg-[#0c241a]/60 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors shadow-2xs"
               >
                 <Bell className="w-4 h-4" />
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500" />
-              </button>
+              </Link>
 
               {/* Language Switcher */}
               <button
@@ -680,9 +642,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Card 4: Today's Expense */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs hover:border-emerald-500/50 transition-all">
+              <Link
+                href="/expense"
+                className="p-4 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                     {content.quickOverview.todayExpenseTitle}
                   </span>
                   <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400">
@@ -697,21 +662,8 @@ export default function DashboardPage() {
                     {content.quickOverview.todayExpenseSub}
                   </p>
                 </div>
-              </div>
+              </Link>
             </div>
-          </section>
-
-          {/* ========================================================================= */}
-          {/* SECTION: LIVE FARM WEATHER TELEMETRY (OPEN-METEO)                         */}
-          {/* ========================================================================= */}
-          <section id="farm-weather-section" className="scroll-mt-6">
-            <FarmWeatherCard
-              latitude={userProfile?.latitude ?? userProfile?.farmLocation?.latitude ?? null}
-              longitude={userProfile?.longitude ?? userProfile?.farmLocation?.longitude ?? null}
-              farmName={userProfile?.villageCity || (lang === "hi" ? "आपका फार्म" : "Your Farm")}
-              lang={lang}
-              onWeatherLoaded={handleWeatherLoaded}
-            />
           </section>
 
           {/* ========================================================================= */}
@@ -887,453 +839,102 @@ export default function DashboardPage() {
           </section>
 
           {/* ========================================================================= */}
-          {/* SECTION C: TODAY'S TASKS (SCHEDULED FARM ACTIONS)                         */}
+          {/* SECTION C: FARM MONITORING & PERFORMANCE                                  */}
           {/* ========================================================================= */}
-          <section className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-emerald-950/40">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-[#0F5132] dark:text-emerald-400">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                    {content.tasks.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {content.tasks.subtitle}
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 self-start sm:self-auto">
-                {Object.values(activeTaskStatus).filter((s) => s === "completed").length} / 4 {content.tasks.doneSuffix}
-              </span>
-            </div>
-
-            <div className="divide-y divide-slate-100 dark:divide-emerald-950/40 mt-1">
-              {/* Task 1 */}
-              <div className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(1)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
-                      activeTaskStatus[1] === "completed"
-                        ? "bg-[#0F5132] border-[#0F5132] text-white"
-                        : "border-slate-300 dark:border-emerald-800"
-                    }`}
-                  >
-                    {activeTaskStatus[1] === "completed" && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs sm:text-sm font-semibold truncate ${
-                        activeTaskStatus[1] === "completed"
-                          ? "line-through text-slate-400 dark:text-slate-500"
-                          : "text-slate-800 dark:text-slate-200"
-                      }`}
-                    >
-                      {content.tasks.task1Title}
+          <section className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-emerald-950/40 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-[#0F5132] dark:text-emerald-400">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      {content.monitoring.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {content.monitoring.subtitle}
                     </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {content.tasks.task1Time}
-                    </span>
                   </div>
                 </div>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 ${
-                    activeTaskStatus[1] === "completed"
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                  }`}
-                >
-                  {activeTaskStatus[1] === "completed"
-                    ? content.tasks.statusCompleted
-                    : content.tasks.statusPending}
-                </span>
-              </div>
-
-              {/* Task 2 */}
-              <div className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(2)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
-                      activeTaskStatus[2] === "completed"
-                        ? "bg-[#0F5132] border-[#0F5132] text-white"
-                        : "border-slate-300 dark:border-emerald-800"
-                    }`}
-                  >
-                    {activeTaskStatus[2] === "completed" && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs sm:text-sm font-semibold truncate ${
-                        activeTaskStatus[2] === "completed"
-                          ? "line-through text-slate-400 dark:text-slate-500"
-                          : "text-slate-800 dark:text-slate-200"
-                      }`}
-                    >
-                      {content.tasks.task2Title}
-                    </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {content.tasks.task2Time}
-                    </span>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 ${
-                    activeTaskStatus[2] === "completed"
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                  }`}
-                >
-                  {activeTaskStatus[2] === "completed"
-                    ? content.tasks.statusCompleted
-                    : content.tasks.statusPending}
-                </span>
-              </div>
-
-              {/* Task 3 */}
-              <div className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(3)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
-                      activeTaskStatus[3] === "completed"
-                        ? "bg-[#0F5132] border-[#0F5132] text-white"
-                        : "border-slate-300 dark:border-emerald-800"
-                    }`}
-                  >
-                    {activeTaskStatus[3] === "completed" && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs sm:text-sm font-semibold truncate ${
-                        activeTaskStatus[3] === "completed"
-                          ? "line-through text-slate-400 dark:text-slate-500"
-                          : "text-slate-800 dark:text-slate-200"
-                      }`}
-                    >
-                      {content.tasks.task3Title}
-                    </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {content.tasks.task3Time}
-                    </span>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 ${
-                    activeTaskStatus[3] === "completed"
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
-                      : activeTaskStatus[3] === "in_progress"
-                      ? "bg-amber-50 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                  }`}
-                >
-                  {activeTaskStatus[3] === "completed"
-                    ? content.tasks.statusCompleted
-                    : activeTaskStatus[3] === "in_progress"
-                    ? content.tasks.statusInProgress
-                    : content.tasks.statusPending}
-                </span>
-              </div>
-
-              {/* Task 4 */}
-              <div className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(4)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
-                      activeTaskStatus[4] === "completed"
-                        ? "bg-[#0F5132] border-[#0F5132] text-white"
-                        : "border-slate-300 dark:border-emerald-800"
-                    }`}
-                  >
-                    {activeTaskStatus[4] === "completed" && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs sm:text-sm font-semibold truncate ${
-                        activeTaskStatus[4] === "completed"
-                          ? "line-through text-slate-400 dark:text-slate-500"
-                          : "text-slate-800 dark:text-slate-200"
-                      }`}
-                    >
-                      {content.tasks.task4Title}
-                    </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {content.tasks.task4Time}
-                    </span>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md shrink-0 ${
-                    activeTaskStatus[4] === "completed"
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                  }`}
-                >
-                  {activeTaskStatus[4] === "completed"
-                    ? content.tasks.statusCompleted
-                    : content.tasks.statusPending}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* ========================================================================= */}
-          {/* SECTION D: FARM MONITORING + ALERTS (SIDE-BY-SIDE ON DESKTOP)            */}
-          {/* ========================================================================= */}
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* 1. Farm Monitoring (7 Columns on Desktop) */}
-            <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-emerald-950/40">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-[#0F5132] dark:text-emerald-400">
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                        {content.monitoring.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {content.monitoring.subtitle}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-xl">
                     {content.monitoring.liveTelemetryBadge}
                   </span>
-                </div>
-
-                {/* 3 Monitoring Blocks with Visual SVG Progress / Sparklines */}
-                <div className="mt-5 space-y-4">
-                  {/* Fish Growth DWG */}
-                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {content.monitoring.fishGrowthTitle}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#0F5132] dark:text-emerald-400">
-                        {content.monitoring.fishGrowthValue}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {content.monitoring.fishGrowthSub}
-                    </p>
-                    {/* SVG Sparkline Bar */}
-                    <div className="mt-2.5 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-emerald-600 rounded-full" style={{ width: "78%" }} />
-                    </div>
-                  </div>
-
-                  {/* Feed Intake & FCR */}
-                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {content.monitoring.feedConsumptionTitle}
-                      </span>
-                      <span className="text-xs font-extrabold text-teal-700 dark:text-teal-400">
-                        {content.monitoring.feedConsumptionValue}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {content.monitoring.feedConsumptionSub}
-                    </p>
-                    {/* SVG Sparkline Bar */}
-                    <div className="mt-2.5 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-teal-600 rounded-full" style={{ width: "88%" }} />
-                    </div>
-                  </div>
-
-                  {/* Poultry Growth */}
-                  <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {content.monitoring.poultryGrowthTitle}
-                      </span>
-                      <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400">
-                        {content.monitoring.poultryGrowthValue}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {content.monitoring.poultryGrowthSub}
-                    </p>
-                    {/* SVG Sparkline Bar */}
-                    <div className="mt-2.5 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-amber-500 rounded-full" style={{ width: "84%" }} />
-                    </div>
-                  </div>
+                  <Link
+                    href="/alerts"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors shadow-2xs"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{content.alerts.title}</span>
+                  </Link>
                 </div>
               </div>
 
-              {/* Bottom Notice */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-emerald-950/40 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span>{content.monitoring.icarBenchmarkNotice}</span>
-                <span className="font-semibold text-emerald-800 dark:text-emerald-400">
-                  {content.monitoring.telemetryUpdatedNotice}
-                </span>
+              {/* 3 Monitoring Blocks Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+                {/* Fish Growth DWG */}
+                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {content.monitoring.fishGrowthTitle}
+                    </span>
+                    <span className="text-xs font-extrabold text-[#0F5132] dark:text-emerald-400">
+                      {content.monitoring.fishGrowthValue}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {content.monitoring.fishGrowthSub}
+                  </p>
+                  <div className="mt-3 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-emerald-600 rounded-full" style={{ width: "78%" }} />
+                  </div>
+                </div>
+
+                {/* Feed Intake & FCR */}
+                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {content.monitoring.feedConsumptionTitle}
+                    </span>
+                    <span className="text-xs font-extrabold text-teal-700 dark:text-teal-400">
+                      {content.monitoring.feedConsumptionValue}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {content.monitoring.feedConsumptionSub}
+                  </p>
+                  <div className="mt-3 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-teal-600 rounded-full" style={{ width: "88%" }} />
+                  </div>
+                </div>
+
+                {/* Poultry Growth */}
+                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-[#081a13] border border-slate-100 dark:border-emerald-950/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {content.monitoring.poultryGrowthTitle}
+                    </span>
+                    <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400">
+                      {content.monitoring.poultryGrowthValue}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {content.monitoring.poultryGrowthSub}
+                  </p>
+                  <div className="mt-3 h-2 w-full bg-slate-200 dark:bg-emerald-950/80 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-amber-500 rounded-full" style={{ width: "84%" }} />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 2. Farm Alerts (5 Columns on Desktop) */}
-            <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#0c241a]/60 border border-slate-200/90 dark:border-emerald-800/40 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-emerald-950/40">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                        {content.alerts.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {content.alerts.subtitle}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-950/80 dark:text-red-300">
-                    {3 - dismissedAlerts.length} {content.alerts.activeBadge}
-                  </span>
-                </div>
-
-                {/* Alerts List */}
-                <div className="mt-4 space-y-3">
-                  {/* Alert 1 */}
-                  {!dismissedAlerts.includes(1) && (
-                    <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                          <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                            {content.alerts.alert1Title}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
-                          {content.alerts.alert1Time}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                        {content.alerts.alert1Desc}
-                      </p>
-                      <div className="mt-2.5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(1)}
-                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                        >
-                          {content.alerts.btnDismiss}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(1)}
-                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-700 hover:bg-amber-800 text-white"
-                        >
-                          {content.alerts.btnResolve}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Alert 2 */}
-                  {!dismissedAlerts.includes(2) && (
-                    <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                          <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200">
-                            {content.alerts.alert2Title}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
-                          {content.alerts.alert2Time}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                        {content.alerts.alert2Desc}
-                      </p>
-                      <div className="mt-2.5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(2)}
-                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                        >
-                          {content.alerts.btnDismiss}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(2)}
-                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-700 hover:bg-blue-800 text-white"
-                        >
-                          {content.alerts.btnResolve}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Alert 3 */}
-                  {!dismissedAlerts.includes(3) && (
-                    <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                          <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                            {content.alerts.alert3Title}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
-                          {content.alerts.alert3Time}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                        {content.alerts.alert3Desc}
-                      </p>
-                      <div className="mt-2.5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(3)}
-                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                        >
-                          {content.alerts.btnDismiss}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAlert(3)}
-                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white"
-                        >
-                          {content.alerts.btnResolve}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {dismissedAlerts.length === 3 && (
-                    <div className="p-6 text-center">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        {content.alerts.allClearMessage}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Alerts Footer */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-emerald-950/40 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                <span>{content.alerts.syncNotice}</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveNav("alerts")}
-                  className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline"
-                >
-                  {content.alerts.configureRulesBtn}
-                </button>
-              </div>
+            {/* Bottom Notice */}
+            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-emerald-950/40 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>{content.monitoring.icarBenchmarkNotice}</span>
+              <span className="font-semibold text-emerald-800 dark:text-emerald-400">
+                {content.monitoring.telemetryUpdatedNotice}
+              </span>
             </div>
           </section>
         </div>
