@@ -232,20 +232,20 @@ export default function LandingPage() {
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-emerald-800" />}
             </button>
 
-            {/* Login */}
+            {/* Login Button */}
             <Link
-              href="/login"
-              className="hidden sm:inline-flex items-center text-sm font-semibold text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 px-3 py-2 transition-colors"
+              href="/login?tab=login"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-slate-300 dark:border-emerald-800 bg-white dark:bg-emerald-950/40 text-slate-800 dark:text-slate-100 hover:border-emerald-500 hover:text-[#0F5132] dark:hover:text-emerald-300 transition-all shadow-2xs active:scale-[0.98]"
             >
-              {content.nav.signIn}
+              <span>{content.nav.signIn}</span>
             </Link>
 
-            {/* Dashboard Button */}
+            {/* Register Button */}
             <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-xs transition-all active:scale-[0.98]"
+              href="/login?tab=register"
+              className="inline-flex items-center justify-center px-5 py-2 rounded-full text-xs sm:text-sm font-bold bg-[#0F5132] hover:bg-[#15803d] text-white shadow-xs transition-all active:scale-[0.98]"
             >
-              <span>{content.nav.launchPortal}</span>
+              <span>{content.nav.register}</span>
             </Link>
 
             {/* Mobile Hamburger Toggle */}
@@ -479,18 +479,18 @@ export default function LandingPage() {
 
             <div className="pt-2 flex flex-col gap-2">
               <Link
-                href="/login"
+                href="/login?tab=login"
                 onClick={() => setMobileNavOpen(false)}
                 className="w-full py-2.5 text-center text-sm font-bold rounded-full border border-slate-300 dark:border-emerald-800 text-slate-800 dark:text-slate-200"
               >
                 {content.nav.signIn}
               </Link>
               <Link
-                href="/dashboard"
+                href="/login?tab=register"
                 onClick={() => setMobileNavOpen(false)}
                 className="w-full py-2.5 text-center text-sm font-bold rounded-full bg-[#0F5132] text-white"
               >
-                {content.nav.launchPortal}
+                {content.nav.register}
               </Link>
             </div>
           </div>

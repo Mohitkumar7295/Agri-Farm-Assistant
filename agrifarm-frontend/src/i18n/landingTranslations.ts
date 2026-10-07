@@ -9,6 +9,7 @@ export interface LandingContent {
     navLearnSupport: string;
     navPricing: string;
     signIn: string;
+    register: string;
     launchPortal: string;
   };
   hero: {
@@ -147,6 +148,7 @@ export const landingTranslations: Record<SupportedLanguage, LandingContent> = {
       navLearnSupport: "Learn & Support",
       navPricing: "Pricing",
       signIn: "Login",
+      register: "Register",
       launchPortal: "Dashboard",
     },
     hero: {
@@ -456,6 +458,7 @@ export const landingTranslations: Record<SupportedLanguage, LandingContent> = {
       navLearnSupport: "सीखें और सहायता",
       navPricing: "मूल्य निर्धारण",
       signIn: "लॉगिन",
+      register: "पंजीकरण",
       launchPortal: "डैशबोर्ड",
     },
     hero: {

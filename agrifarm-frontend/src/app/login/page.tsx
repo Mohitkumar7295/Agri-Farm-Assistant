@@ -105,6 +105,15 @@ export default function LoginPage() {
     } else {
       document.documentElement.classList.remove("dark");
     }
+
+    // Read ?tab=login or ?tab=register from URL query
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const tabParam = searchParams.get("tab");
+      if (tabParam === "login" || tabParam === "register") {
+        setActiveTab(tabParam);
+      }
+    }
   }, []);
 
   // OTP Countdown Timer
