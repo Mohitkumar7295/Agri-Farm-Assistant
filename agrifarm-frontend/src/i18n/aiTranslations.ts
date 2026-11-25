@@ -27,9 +27,16 @@ export interface AiContent {
     poultry: string;
     modeLabel: string;
     generalAi: string;
+    generalAiDesc: string;
     batchAi: string;
+    batchAiDesc: string;
     batchLabel: string;
+    selectBatch: string;
     batchActiveBadge: string;
+    noBatches: string;
+    fishCountUnit: string;
+    birdCountUnit: string;
+    dayPrefix: string;
   };
   welcome: {
     heading: string;
@@ -89,9 +96,16 @@ export const aiTranslations: Record<AiLanguage, AiContent> = {
       poultry: "Poultry",
       modeLabel: "AI Mode",
       generalAi: "General AI",
+      generalAiDesc: "ICAR-CIFA / ICAR-CARI scientific advice",
       batchAi: "Batch AI",
+      batchAiDesc: "Linked to live batch & pond metrics",
       batchLabel: "Select Batch",
-      batchActiveBadge: "Active Batch Context",
+      selectBatch: "Select Batch",
+      batchActiveBadge: "Live Batch Context Linked",
+      noBatches: "No active batches found",
+      fishCountUnit: "fish",
+      birdCountUnit: "birds",
+      dayPrefix: "Day",
     },
     welcome: {
       heading: "How can I help with your farm?",
@@ -149,9 +163,16 @@ export const aiTranslations: Record<AiLanguage, AiContent> = {
       poultry: "कुक्कुट पालन",
       modeLabel: "एआई मोड",
       generalAi: "सामान्य एआई",
+      generalAiDesc: "भाकृअनुप वैज्ञानिक सलाह (बिना बैच)",
       batchAi: "बैच एआई",
+      batchAiDesc: "सक्रिय बैच व तालाब डेटा से जुड़ा",
       batchLabel: "बैच चुनें",
-      batchActiveBadge: "सक्रिय बैच संदर्भ",
+      selectBatch: "बैच चुनें",
+      batchActiveBadge: "सक्रिय बैच संदर्भ जुड़ा है",
+      noBatches: "कोई सक्रिय बैच नहीं मिला",
+      fishCountUnit: "मछलियाँ",
+      birdCountUnit: "पक्षी",
+      dayPrefix: "दिवस",
     },
     welcome: {
       heading: "मैं आपके फार्म में क्या सहायता कर सकता हूँ?",

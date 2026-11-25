@@ -40,6 +40,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TenantViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTenantViolation(TenantViolationException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(StockUnderflowException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStockUnderflow(StockUnderflowException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error("STOCK_UNDERFLOW_ERROR: " + ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unhandled exception: {}", ex.getMessage(), ex);

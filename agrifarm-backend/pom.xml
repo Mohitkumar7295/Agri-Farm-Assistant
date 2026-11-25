@@ -101,13 +101,6 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- MinIO S3 Client (Lesion Photos & PDF Farm Reports) -->
-		<dependency>
-			<groupId>io.minio</groupId>
-			<artifactId>minio</artifactId>
-			<version>8.5.9</version>
-		</dependency>
-
 		<!-- SpringDoc OpenAPI (Swagger 3 Documentation UI) -->
 		<dependency>
 			<groupId>org.springdoc</groupId>

@@ -12,7 +12,6 @@ import {
   Search,
   Menu,
   X,
-  Layers,
   Paperclip,
   Mic,
   MicOff,
@@ -20,7 +19,7 @@ import {
   AlertTriangle,
   Languages,
 } from "lucide-react";
-import { FisheriesBatch, EXACT_FISH_SPECIES } from "@/types/fisheries";
+import { FisheriesBatch } from "@/types/fisheries";
 import { INITIAL_FISHERIES_BATCHES } from "@/data/defaultFisheriesData";
 import { PoultryBatch, INITIAL_POULTRY_BATCHES } from "@/data/defaultPoultryData";
 import {
@@ -28,6 +27,10 @@ import {
   AiLanguage,
   AiContent,
 } from "@/i18n/aiTranslations";
+import {
+  ChatContextSelectors,
+  BatchContextPayload,
+} from "@/components/ai/ChatContextSelectors";
 
 interface ChatMessage {
   id: string;
@@ -37,6 +40,7 @@ interface ChatMessage {
   domain: "fisheries" | "poultry";
   mode: "general" | "batch";
   batchName?: string;
+  batchContext?: BatchContextPayload | null;
   citation?: string;
   isWarning?: boolean;
 }
@@ -164,10 +168,129 @@ export default function AiAssistantPage() {
     (b) => b.id === selectedPoultryBatchId
   );
 
+  const selectedBatchId =
+    selectedDomain === "fisheries"
+      ? selectedFisheriesBatchId
+      : selectedPoultryBatchId;
+
   const currentBatchName =
     selectedDomain === "fisheries"
-      ? selectedFisheriesBatch?.name || "Batch 1"
-      : selectedPoultryBatch?.name || "Batch 1";
+      ? selectedFisheriesBatch?.name || ""
+      : selectedPoultryBatch?.name || "";
+
+  // Build structured full batchContext for AI chat requests
+  const [mountTimestamp] = useState<number>(() => Date.now());
+
+  const getActiveBatchContext = (): BatchContextPayload | null => {
+    if (selectedMode !== "batch") return null;
+
+    let pendingTasks: string[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const rawTasks = localStorage.getItem("agrifarm_tasks");
+        if (rawTasks) {
+          const parsed = JSON.parse(rawTasks);
+          if (Array.isArray(parsed)) {
+            pendingTasks = parsed
+              .filter((t: { completed?: boolean; title?: string }) => !t?.completed && t?.title)
+              .slice(0, 5)
+              .map((t: { title: string }) => t.title);
+          }
+        }
+      } catch {
+        pendingTasks = [];
+      }
+    }
+
+    if (selectedDomain === "fisheries" && selectedFisheriesBatch) {
+      const b = selectedFisheriesBatch;
+      const totalFish = b.speciesList.reduce((acc, s) => acc + s.quantity, 0);
+      const totalWeightGrams = b.speciesList.reduce(
+        (acc, s) => acc + s.quantity * s.currentWeightGrams,
+        0
+      );
+      const avgWeightGrams = totalFish > 0 ? totalWeightGrams / totalFish : 0;
+      const stockingTime = new Date(b.stockingDate).getTime();
+      const ageDays = Number.isNaN(stockingTime)
+        ? 0
+        : Math.max(0, Math.floor((mountTimestamp - stockingTime) / (1000 * 60 * 60 * 24)));
+      const latestFeed = b.feedingHistory[0];
+      const totalMortality = b.healthRecords.reduce(
+        (acc, h) => acc + (h.mortalityCount || 0),
+        0
+      );
+
+      return {
+        batchId: b.id,
+        batchName: b.name,
+        domain: "fisheries",
+        speciesOrBreed: b.speciesList.map((s) => s.speciesName).join(", "),
+        ageDays,
+        currentCount: totalFish,
+        avgWeightGrams,
+        latestFeedKg: b.todayFeedKg ?? latestFeed?.rationKg ?? 0,
+        fcr: latestFeed?.fcr ?? 1.25,
+        mortalityCount: totalMortality,
+        latestWaterQuality: { ...b.waterTelemetry },
+        pendingTasks,
+      };
+    }
+
+    if (selectedDomain === "poultry" && selectedPoultryBatch) {
+      const p = selectedPoultryBatch;
+      return {
+        batchId: p.id,
+        batchName: p.name,
+        domain: "poultry",
+        speciesOrBreed: `${p.breed} (${p.category})`,
+        ageDays: p.ageDays,
+        currentCount: p.quantity,
+        avgWeightGrams: p.currentWeightGrams,
+        latestFeedKg: p.dailyFeedKg,
+        fcr: p.fcr,
+        mortalityCount: p.mortalityCount,
+        shedEnvironment: {
+          temperatureC: p.temperatureC,
+          humidityPercent: p.humidityPercent,
+          vaccinationStatus: p.vaccinationStatus,
+        },
+        pendingTasks,
+      };
+    }
+
+    return null;
+  };
+
+  const activeBatchContext = getActiveBatchContext();
+
+  // Cascading Domain -> Mode -> Batch handlers
+  const handleDomainChange = (nextDomain: "fisheries" | "poultry") => {
+    if (nextDomain === selectedDomain) return;
+    setSelectedDomain(nextDomain);
+    // Clear previous domain's batch selection so the user picks cleanly from the new domain
+    if (nextDomain === "poultry") {
+      setSelectedFisheriesBatchId("");
+      setSelectedPoultryBatchId("");
+    } else {
+      setSelectedPoultryBatchId("");
+      setSelectedFisheriesBatchId("");
+    }
+  };
+
+  const handleModeChange = (nextMode: "general" | "batch") => {
+    setSelectedMode(nextMode);
+  };
+
+  const handleBatchSelect = (batchId: string) => {
+    if (selectedMode !== "batch") {
+      setSelectedMode("batch");
+    }
+    if (selectedDomain === "fisheries") {
+      setSelectedFisheriesBatchId(batchId);
+    } else {
+      setSelectedPoultryBatchId(batchId);
+    }
+  };
 
   // Start New Chat
   const handleStartNewChat = () => {
@@ -225,31 +348,27 @@ export default function AiAssistantPage() {
     });
   };
 
-  // Generate authentic ICAR responses based on domain, mode, and actual batch telemetry
+  // Generate authentic ICAR responses based on domain, mode, and full batchContext
   const generateIcarResponse = (
     queryText: string,
     domain: "fisheries" | "poultry",
-    mode: "general" | "batch"
+    mode: "general" | "batch",
+    batchCtx: BatchContextPayload | null
   ): { text: string; citation: string; isWarning?: boolean } => {
     const lower = queryText.toLowerCase();
 
     // 1. FISHERIES BATCH AI
-    if (domain === "fisheries" && mode === "batch" && selectedFisheriesBatch) {
-      const batch = selectedFisheriesBatch;
-      const totalFish = batch.speciesList.reduce((acc, s) => acc + s.quantity, 0);
-      const biomassKg = batch.speciesList.reduce(
-        (acc, s) => acc + (s.quantity * s.currentWeightGrams) / 1000,
-        0
-      );
-      const speciesNames = batch.speciesList.map((s) => s.speciesName).join(", ");
+    if (domain === "fisheries" && mode === "batch" && batchCtx) {
+      const water = batchCtx.latestWaterQuality;
+      const biomassKg = (batchCtx.currentCount * batchCtx.avgWeightGrams) / 1000;
 
       // Check DO safety override
-      if (batch.waterTelemetry.dissolvedOxygenMgL < 3.0 && lower.includes("feed")) {
+      if (water && water.dissolvedOxygenMgL < 3.0 && lower.includes("feed")) {
         return {
           text:
             lang === "hi"
-              ? `गंभीर सुरक्षा चेतावनी: तालाब में घुलित ऑक्सीजन स्तर ${batch.waterTelemetry.dissolvedOxygenMgL} मिग्रा/ली है जो 3.0 मिग्रा/ली की सुरक्षित सीमा से नीचे है। मछलियों में तनाव और मृत्यु रोकने के लिए आहार वितरण तुरंत रोक दिया जाना चाहिए। कृपया तुरंत एरेटर चालू करें और पानी का नवीनीकरण करें।`
-              : `CRITICAL SAFETY OVERRIDE: Pond Dissolved Oxygen is currently ${batch.waterTelemetry.dissolvedOxygenMgL} mg/L, which is critically below the 3.0 mg/L minimum threshold. Feed distribution must be suspended immediately to prevent mortality. Activate paddlewheel aerators immediately and exchange surface water.`,
+              ? `गंभीर सुरक्षा चेतावनी (${batchCtx.batchName}): तालाब में घुलित ऑक्सीजन स्तर ${water.dissolvedOxygenMgL} मिग्रा/ली है जो 3.0 मिग्रा/ली की सुरक्षित सीमा से नीचे है। ${batchCtx.currentCount.toLocaleString()} मछलियों में तनाव और मृत्यु रोकने के लिए आहार वितरण तुरंत रोक दिया जाना चाहिए। कृपया तुरंत एरेटर चालू करें।`
+              : `CRITICAL SAFETY OVERRIDE (${batchCtx.batchName}): Pond Dissolved Oxygen is currently ${water.dissolvedOxygenMgL} mg/L, which is critically below the 3.0 mg/L minimum threshold. Suspend feeding for all ${batchCtx.currentCount.toLocaleString()} fish immediately and activate paddlewheel aerators.`,
           citation: "ICAR-CIFA Water Quality Emergency Protocol",
           isWarning: true,
         };
@@ -266,8 +385,8 @@ export default function AiAssistantPage() {
         return {
           text:
             lang === "hi"
-              ? `बैच "${batch.name}" (${speciesNames}) आहार गणना:\n\n• कुल संचित मछलियाँ: ${totalFish.toLocaleString()}\n• वर्तमान बायोमास: ${biomassKg.toFixed(0)} किग्रा\n• अनुशंसित दैनिक आहार दर: बायोमास का 2.4%\n• आज का कुल आहार: ${calculatedDailyFeed} किग्रा (फ्लोटिंग पैलेट 28% प्रोटीन)\n• वितरण अनुसूची: 50% सुबह 07:30 बजे (${(calculatedDailyFeed * 0.5).toFixed(1)} किग्रा) और 50% सायं 04:30 बजे (${(calculatedDailyFeed * 0.5).toFixed(1)} किग्रा)।\n\nजल तापमान ${batch.waterTelemetry.temperatureC}°C और घुलित ऑक्सीजन ${batch.waterTelemetry.dissolvedOxygenMgL} मिग्रा/ली पर पाचन क्रिया अनुकूल है।`
-              : `Feeding Formulation for Batch "${batch.name}" (${speciesNames}):\n\n• Standing Stock: ${totalFish.toLocaleString()} fish\n• Current Biomass: ${biomassKg.toFixed(0)} kg across ${batch.pondAreaAcres} acres\n• Recommended Daily Ration: 2.4% of standing biomass\n• Today's Target Ration: ${calculatedDailyFeed} kg (Floating Pellets, 28% Crude Protein)\n• Feed Split: 50% Morning at 07:30 AM (${(calculatedDailyFeed * 0.5).toFixed(1)} kg) and 50% Evening at 04:30 PM (${(calculatedDailyFeed * 0.5).toFixed(1)} kg).\n\nCurrent DO (${batch.waterTelemetry.dissolvedOxygenMgL} mg/L) and Water Temp (${batch.waterTelemetry.temperatureC}°C) support active metabolic ingestion. Cumulative FCR remains efficient at 1.26.`,
+              ? `बैच "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}) आहार गणना:\n\n• कुल संचित मछलियाँ: ${batchCtx.currentCount.toLocaleString()}\n• वर्तमान बायोमास: ${biomassKg.toFixed(0)} किग्रा\n• नवीनतम दर्ज आहार: ${batchCtx.latestFeedKg} किग्रा (FCR: ${batchCtx.fcr})\n• अनुशंसित दैनिक आहार: ${calculatedDailyFeed} किग्रा (28% प्रोटीन फ्लोटिंग पैलेट)\n• जल स्थिति: तापमान ${water?.temperatureC ?? "-"}°C, DO ${water?.dissolvedOxygenMgL ?? "-"} मिग्रा/ली।`
+              : `Feeding Formulation for "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}):\n\n• Standing Stock: ${batchCtx.currentCount.toLocaleString()} fish (Avg ${Math.round(batchCtx.avgWeightGrams)} g)\n• Current Biomass: ${biomassKg.toFixed(0)} kg\n• Latest Logged Feed: ${batchCtx.latestFeedKg} kg · FCR: ${batchCtx.fcr}\n• Recommended Target Ration: ${calculatedDailyFeed} kg/day (28% CP Floating Pellets)\n• Water Telemetry: DO ${water?.dissolvedOxygenMgL ?? "-"} mg/L, Temp ${water?.temperatureC ?? "-"}°C.`,
           citation: "ICAR-CIFA Carp Nutrition Guidelines",
         };
       }
@@ -282,25 +401,24 @@ export default function AiAssistantPage() {
         return {
           text:
             lang === "hi"
-              ? `तालाब "${batch.name}" जल टेलीमेट्री परीक्षण:\n\n• तापमान: ${batch.waterTelemetry.temperatureC}°C (मानक: 26–32°C) — अनुकूल\n• पीएच (pH): ${batch.waterTelemetry.pH} (मानक: 6.8–8.2) — सामान्य\n• घुलित ऑक्सीजन: ${batch.waterTelemetry.dissolvedOxygenMgL} मिग्रा/ली (मानक: > 5.0 मिग्रा/ली) — सुरक्षित\n• अमोनिया: ${batch.waterTelemetry.ammoniaMgL} मिग्रा/ली (मानक: < 0.02 मिग्रा/ली) — सुरक्षित\n\nनिष्कर्ष: पानी की गुणवत्ता संतुलित है। किसी रासायनिक संशोधन की आवश्यकता नहीं है।`
-              : `Water Quality Diagnostic for "${batch.name}":\n\n• Temperature: ${batch.waterTelemetry.temperatureC}°C (Optimal: 26.0–32.0°C) — Normal\n• pH: ${batch.waterTelemetry.pH} (Optimal: 6.8–8.2) — Balanced\n• Dissolved Oxygen: ${batch.waterTelemetry.dissolvedOxygenMgL} mg/L (Optimal: > 5.0 mg/L) — Safe\n• Ammonia: ${batch.waterTelemetry.ammoniaMgL} mg/L (Optimal: < 0.02 mg/L) — Safe\n\nDiagnostic Conclusion: Water parameters are well within safe fisheries thresholds. No chemical intervention is needed.`,
+              ? `तालाब "${batchCtx.batchName}" जल टेलीमेट्री परीक्षण:\n\n• तापमान: ${water?.temperatureC ?? "-"}°C (मानक: 26–32°C)\n• पीएच (pH): ${water?.pH ?? "-"} (मानक: 6.8–8.2)\n• घुलित ऑक्सीजन: ${water?.dissolvedOxygenMgL ?? "-"} मिग्रा/ली (मानक: > 5.0 मिग्रा/ली)\n• अमोनिया: ${water?.ammoniaMgL ?? "-"} मिग्रा/ली (मानक: < 0.02 मिग्रा/ली)\n\n${batchCtx.currentCount.toLocaleString()} मछलियों (मृत्यु दर्ज: ${batchCtx.mortalityCount}) के लिए पानी की गुणवत्ता संतुलित है।`
+              : `Water Quality Diagnostic for "${batchCtx.batchName}" (${batchCtx.currentCount.toLocaleString()} fish):\n\n• Temperature: ${water?.temperatureC ?? "-"}°C (Optimal: 26.0–32.0°C)\n• pH: ${water?.pH ?? "-"} (Optimal: 6.8–8.2)\n• Dissolved Oxygen: ${water?.dissolvedOxygenMgL ?? "-"} mg/L (Optimal: > 5.0 mg/L)\n• Ammonia: ${water?.ammoniaMgL ?? "-"} mg/L (Optimal: < 0.02 mg/L)\n• Recorded Mortality: ${batchCtx.mortalityCount}\n\nDiagnostic Conclusion: Water parameters are within safe ICAR-CIFA thresholds.`,
           citation: "ICAR-CIFA Water Quality Thresholds",
         };
       }
 
-      // Default batch advice
       return {
         text:
           lang === "hi"
-            ? `बैच "${batch.name}" विश्लेषण (${speciesNames}):\n\nवर्तमान में ${batch.pondAreaAcres} एकड़ में ${totalFish.toLocaleString()} मछलियाँ संचित हैं। वर्तमान बायोमास ${biomassKg.toFixed(0)} किग्रा है और दैनिक शारीरिक भार वृद्धि (DWG) +14.2 ग्रा/दिन मापी गई है। दैनिक आहार 95 किग्रा रखें और नियमित नमूना लेते रहें।`
-            : `Batch Analysis for "${batch.name}" (${speciesNames}):\n\nCurrently maintaining ${totalFish.toLocaleString()} fish across ${batch.pondAreaAcres} acres with a total biomass of ${biomassKg.toFixed(0)} kg. The measured Daily Weight Gain (DWG) is +14.2 g/day. Keep daily feed ration at 95.0 kg and schedule regular sampling.`,
+            ? `बैच "${batchCtx.batchName}" लाइव विश्लेषण (${batchCtx.speciesOrBreed}):\n\n• संचित संख्या: ${batchCtx.currentCount.toLocaleString()} मछलियाँ (आयु: ${batchCtx.ageDays} दिन)\n• औसत वज़न: ${Math.round(batchCtx.avgWeightGrams)} ग्राम · बायोमास: ${biomassKg.toFixed(0)} किग्रा\n• दैनिक आहार: ${batchCtx.latestFeedKg} किग्रा · FCR: ${batchCtx.fcr} · मृत्यु: ${batchCtx.mortalityCount}\n• घुलित ऑक्सीजन: ${water?.dissolvedOxygenMgL ?? "-"} मिग्रा/ली\n\nवर्तमान डेटा के अनुसार वृद्धि और जल गुणवत्ता सामान्य है।`
+            : `Live Batch Analysis for "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}):\n\n• Active Stock: ${batchCtx.currentCount.toLocaleString()} fish (${batchCtx.ageDays} days)\n• Avg Weight: ${Math.round(batchCtx.avgWeightGrams)} g · Est. Biomass: ${biomassKg.toFixed(0)} kg\n• Latest Feed: ${batchCtx.latestFeedKg} kg/day · FCR: ${batchCtx.fcr} · Mortality: ${batchCtx.mortalityCount}\n• Water DO: ${water?.dissolvedOxygenMgL ?? "-"} mg/L, pH: ${water?.pH ?? "-"}\n\nGrowth and water parameters are tracking within ICAR-CIFA targets.`,
         citation: "ICAR-CIFA Carp Polyculture Protocol",
       };
     }
 
     // 2. POULTRY BATCH AI
-    if (domain === "poultry" && mode === "batch" && selectedPoultryBatch) {
-      const flock = selectedPoultryBatch;
+    if (domain === "poultry" && mode === "batch" && batchCtx) {
+      const env = batchCtx.shedEnvironment;
       if (
         lower.includes("feed") ||
         lower.includes("दाना") ||
@@ -311,8 +429,8 @@ export default function AiAssistantPage() {
         return {
           text:
             lang === "hi"
-              ? `शेड "${flock.name}" (${flock.breed}, दिवस ${flock.ageDays}) आहार आवश्यकता:\n\n• कुल पक्षी: ${flock.quantity.toLocaleString()} ब्रायलर\n• वर्तमान औसत वज़न: ${flock.currentWeightGrams} ग्राम\n• दैनिक आहार खपत: ${flock.dailyFeedKg} किग्रा (फिनिशर क्रम्बल 20% प्रोटीन)\n• प्रति पक्षी दैनिक खपत: ~29.5 ग्राम/पक्षी\n• संचयी एफसीआर (FCR): ${flock.fcr}\n\nआहार की गुणवत्ता और तापमान (26.5°C) के आधार पर विकास दर अनुकूल है।`
-              : `Feed Allocation for "${flock.name}" (${flock.breed}, Day ${flock.ageDays}):\n\n• Total Birds: ${flock.quantity.toLocaleString()} active broilers\n• Current Body Weight: ${flock.currentWeightGrams} g (Target: ${flock.targetWeightGrams} g)\n• Daily Feed Ration: ${flock.dailyFeedKg} kg (Broiler Finisher Crumbles)\n• Per Bird Ingestion: ~29.5 g/bird\n• Cumulative FCR: ${flock.fcr}\n\nNutrient conversion and shed temperature are within optimal comfort limits.`,
+              ? `शेड "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}, दिवस ${batchCtx.ageDays}) आहार आवश्यकता:\n\n• कुल पक्षी: ${batchCtx.currentCount.toLocaleString()}\n• वर्तमान औसत वज़न: ${batchCtx.avgWeightGrams} ग्राम\n• दैनिक आहार खपत: ${batchCtx.latestFeedKg} किग्रा\n• संचयी एफसीआर (FCR): ${batchCtx.fcr}\n• शेड तापमान: ${env?.temperatureC ?? "-"}°C`
+              : `Feed Allocation for "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}, Day ${batchCtx.ageDays}):\n\n• Total Birds: ${batchCtx.currentCount.toLocaleString()}\n• Current Body Weight: ${batchCtx.avgWeightGrams} g\n• Daily Feed Ration: ${batchCtx.latestFeedKg} kg\n• Cumulative FCR: ${batchCtx.fcr}\n• Shed Temp: ${env?.temperatureC ?? "-"}°C (Humidity: ${env?.humidityPercent ?? "-"}%)`,
           citation: "ICAR-CARI Broiler Nutrition Standards",
         };
       }
@@ -326,8 +444,8 @@ export default function AiAssistantPage() {
         return {
           text:
             lang === "hi"
-              ? `शेड "${flock.name}" स्वास्थ्य रिपोर्ट:\n\n• उत्तरजीविता दर: ${flock.survivalRatePercent}%\n• कुल मृत्यु: ${flock.mortalityCount} पक्षी (0.18% - सुरक्षित सीमा < 0.5%)\n• टीकाकरण स्थिति: ${flock.vaccinationStatus}\n• शेड तापमान: ${flock.temperatureC}°C, आर्द्रता: ${flock.humidityPercent}%\n\nकोई असामान्य श्वसन या पाचन संबंधी लक्षण नहीं हैं। लीटर सूखा और साफ है।`
-              : `Flock Health Diagnostic for "${flock.name}":\n\n• Survival Rate: ${flock.survivalRatePercent}%\n• Mortalities: ${flock.mortalityCount} birds (0.18% cumulative; well below 0.5% threshold)\n• Vaccination Schedule: ${flock.vaccinationStatus}\n• Thermal Environment: ${flock.temperatureC}°C, Humidity: ${flock.humidityPercent}%\n\nNo respiratory distress observed. Litter moisture is maintained at optimal levels.`,
+              ? `शेड "${batchCtx.batchName}" स्वास्थ्य रिपोर्ट:\n\n• सक्रिय पक्षी: ${batchCtx.currentCount.toLocaleString()} (दिवस ${batchCtx.ageDays})\n• कुल मृत्यु: ${batchCtx.mortalityCount} पक्षी\n• टीकाकरण स्थिति: ${env?.vaccinationStatus ?? "-"}\n• शेड तापमान: ${env?.temperatureC ?? "-"}°C, आर्द्रता: ${env?.humidityPercent ?? "-"}%`
+              : `Flock Health Diagnostic for "${batchCtx.batchName}":\n\n• Active Birds: ${batchCtx.currentCount.toLocaleString()} (Day ${batchCtx.ageDays})\n• Mortalities: ${batchCtx.mortalityCount} birds\n• Vaccination Schedule: ${env?.vaccinationStatus ?? "-"}\n• Thermal Environment: ${env?.temperatureC ?? "-"}°C, Humidity: ${env?.humidityPercent ?? "-"}%`,
           citation: "ICAR-CARI Avian Health Standards",
         };
       }
@@ -335,8 +453,8 @@ export default function AiAssistantPage() {
       return {
         text:
           lang === "hi"
-            ? `शेड "${flock.name}" (${flock.breed}) सारांश:\n\nकुल ${flock.quantity.toLocaleString()} पक्षी दिवस ${flock.ageDays} पर हैं। औसत भार ${flock.currentWeightGrams} ग्राम है जो मानक लक्ष्य से आगे है। वेंटिलेशन और स्वच्छ जल आपूर्ति बनाए रखें।`
-            : `Flock Status for "${flock.name}" (${flock.breed}):\n\nMaintaining ${flock.quantity.toLocaleString()} birds at Day ${flock.ageDays}. Current average weight is ${flock.currentWeightGrams} g, trending ahead of standard commercial curve. Continue strict biosecurity and ad-libitum clean drinking water.`,
+            ? `शेड "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}) लाइव सारांश:\n\n• पक्षी संख्या: ${batchCtx.currentCount.toLocaleString()} · आयु: ${batchCtx.ageDays} दिन\n• औसत वज़न: ${batchCtx.avgWeightGrams} ग्राम · दैनिक चारा: ${batchCtx.latestFeedKg} किग्रा\n• FCR: ${batchCtx.fcr} · मृत्यु: ${batchCtx.mortalityCount}`
+            : `Live Flock Status for "${batchCtx.batchName}" (${batchCtx.speciesOrBreed}):\n\n• Bird Count: ${batchCtx.currentCount.toLocaleString()} · Age: Day ${batchCtx.ageDays}\n• Avg Weight: ${batchCtx.avgWeightGrams} g · Daily Feed: ${batchCtx.latestFeedKg} kg\n• FCR: ${batchCtx.fcr} · Mortality: ${batchCtx.mortalityCount}`,
         citation: "ICAR-CARI Broiler Management Manual",
       };
     }
@@ -417,7 +535,16 @@ export default function AiAssistantPage() {
       }),
       domain: selectedDomain,
       mode: selectedMode,
-      batchName: selectedMode === "batch" ? currentBatchName : undefined,
+      batchName: selectedMode === "batch" && currentBatchName ? currentBatchName : undefined,
+      batchContext: activeBatchContext,
+    };
+
+    const requestPayload = {
+      query: text,
+      domain: selectedDomain,
+      mode: selectedMode,
+      language: lang,
+      batchContext: activeBatchContext,
     };
 
     const updatedMessages = [...(targetConv.messages || []), userMsg];
@@ -427,12 +554,17 @@ export default function AiAssistantPage() {
       targetConv.messages.length === 0 ? text.slice(0, 30) : undefined
     );
 
-    // AI Response generation with simulated streaming
+    // AI Response generation with full batchContext passed to handler
     setIsAiStreaming(true);
 
     setTimeout(() => {
       setIsAiStreaming(false);
-      const icarResult = generateIcarResponse(text, selectedDomain, selectedMode);
+      const icarResult = generateIcarResponse(
+        requestPayload.query,
+        requestPayload.domain,
+        requestPayload.mode,
+        requestPayload.batchContext
+      );
 
       const aiMsg: ChatMessage = {
         id: "ai-" + (Date.now() + 1),
@@ -444,7 +576,8 @@ export default function AiAssistantPage() {
         }),
         domain: selectedDomain,
         mode: selectedMode,
-        batchName: selectedMode === "batch" ? currentBatchName : undefined,
+        batchName: selectedMode === "batch" && currentBatchName ? currentBatchName : undefined,
+        batchContext: requestPayload.batchContext,
         citation: icarResult.citation,
         isWarning: icarResult.isWarning,
       };
@@ -870,133 +1003,6 @@ export default function AiAssistantPage() {
           </div>
         </div>
 
-        {/* Compact Domain & Mode Selector Bar */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-50/80 border-b border-emerald-100 shrink-0">
-          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              {/* Farm Domain Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-600">
-                  {content.selectors.domainLabel}:
-                </span>
-                <div className="inline-flex rounded-lg p-0.5 bg-white border border-emerald-200 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDomain("fisheries")}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                      selectedDomain === "fisheries"
-                        ? "bg-[#0F5132] text-white shadow-2xs"
-                        : "bg-white text-[#0F5132] hover:bg-emerald-50"
-                    }`}
-                  >
-                    <Fish className="w-3.5 h-3.5" />
-                    <span>{content.selectors.fisheries}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDomain("poultry")}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                      selectedDomain === "poultry"
-                        ? "bg-[#0F5132] text-white shadow-2xs"
-                        : "bg-white text-[#0F5132] hover:bg-emerald-50"
-                    }`}
-                  >
-                    <Feather className="w-3.5 h-3.5" />
-                    <span>{content.selectors.poultry}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* AI Mode Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-600">
-                  {content.selectors.modeLabel}:
-                </span>
-                <div className="inline-flex rounded-lg p-0.5 bg-white border border-emerald-200 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMode("general")}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                      selectedMode === "general"
-                        ? "bg-[#0F5132] text-white shadow-2xs"
-                        : "bg-white text-[#0F5132] hover:bg-emerald-50"
-                    }`}
-                  >
-                    <Bot className="w-3.5 h-3.5" />
-                    <span>{content.selectors.generalAi}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMode("batch")}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                      selectedMode === "batch"
-                        ? "bg-[#0F5132] text-white shadow-2xs"
-                        : "bg-white text-[#0F5132] hover:bg-emerald-50"
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>{content.selectors.batchAi}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Batch Selector (Visible when Batch AI is active) */}
-            {selectedMode === "batch" && (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[#0F5132]">
-                  {content.selectors.batchLabel}:
-                </span>
-                {selectedDomain === "fisheries" ? (
-                  <select
-                    value={selectedFisheriesBatchId}
-                    onChange={(e) => setSelectedFisheriesBatchId(e.target.value)}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-emerald-300 bg-white text-[#0F5132] focus:outline-none focus:ring-1 focus:ring-[#0F5132]"
-                  >
-                    {fisheriesBatches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} ({b.pondAreaAcres} ac)
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    value={selectedPoultryBatchId}
-                    onChange={(e) => setSelectedPoultryBatchId(e.target.value)}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-emerald-300 bg-white text-[#0F5132] focus:outline-none focus:ring-1 focus:ring-[#0F5132]"
-                  >
-                    {poultryBatches.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (Day {p.ageDays})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Real Batch Context Line */}
-          {selectedMode === "batch" && (
-            <div className="max-w-4xl mx-auto mt-1.5 pt-1.5 border-t border-emerald-100 flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-1.5 text-[#0F5132] font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                <span>
-                  Batch AI — {currentBatchName}
-                </span>
-              </div>
-              <span className="text-slate-500 text-[10px]">
-                {selectedDomain === "fisheries" && selectedFisheriesBatch && (
-                  `${selectedFisheriesBatch.speciesList.length} Species · DO: ${selectedFisheriesBatch.waterTelemetry.dissolvedOxygenMgL} mg/L`
-                )}
-                {selectedDomain === "poultry" && selectedPoultryBatch && (
-                  `Day ${selectedPoultryBatch.ageDays} · FCR: ${selectedPoultryBatch.fcr}`
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-
         {/* Clean, Large Chat Workspace Area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           <div className="max-w-4xl mx-auto flex flex-col justify-end min-h-full">
@@ -1094,39 +1100,8 @@ export default function AiAssistantPage() {
           </div>
         </div>
 
-        {/* Suggested Questions (Compact buttons near bottom) */}
-        <div className="px-4 sm:px-6 py-2 border-t border-emerald-100/60 bg-white">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              {(selectedDomain === "fisheries"
-                ? [
-                    content.welcome.fisheriesQ1,
-                    content.welcome.fisheriesQ2,
-                    content.welcome.fisheriesQ3,
-                    content.welcome.fisheriesQ4,
-                  ]
-                : [
-                    content.welcome.poultryQ1,
-                    content.welcome.poultryQ2,
-                    content.welcome.poultryQ3,
-                    content.welcome.poultryQ4,
-                  ]
-              ).map((q, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSendMessage(q)}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 text-[11px] font-medium text-slate-700 transition-colors shadow-2xs"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Fixed Chat Input Bar */}
-        <div className="border-t border-emerald-200 bg-white px-4 py-3 shrink-0">
+        {/* Fixed Chat Composer Bar with Minimalist Upward-Opening Context Selectors */}
+        <div className="border-t border-emerald-100 bg-white px-3 sm:px-6 py-3 shrink-0">
           <div className="max-w-4xl mx-auto">
             {attachedFileNotice && (
               <div className="mb-2 flex items-center justify-between text-[11px] bg-emerald-50 text-[#0F5132] border border-emerald-200 px-3 py-1 rounded-lg">
@@ -1141,67 +1116,85 @@ export default function AiAssistantPage() {
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex items-center gap-2 bg-slate-50 border border-emerald-200 rounded-full px-3 py-1.5 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-1 focus-within:ring-emerald-500 transition-all shadow-2xs"
-            >
-              {/* Attachment Button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setAttachedFileNotice(
-                    lang === "hi"
-                      ? "हालिया जल गुणवत्ता टेलीमेट्री लॉग संलग्न किया गया।"
-                      : "Recent pond water telemetry log attached."
-                  )
-                }
-                title={content.input.attachTooltip}
-                className="p-1.5 rounded-full text-slate-500 hover:text-[#0F5132] hover:bg-emerald-100/50 transition-colors"
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 pt-2 pb-2 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-1 focus-within:ring-emerald-500/40 transition-all shadow-2xs">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex items-center gap-2"
               >
-                <Paperclip className="w-4 h-4" />
-              </button>
+                {/* Attachment Button */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAttachedFileNotice(
+                      lang === "hi"
+                        ? "हालिया जल गुणवत्ता टेलीमेट्री लॉग संलग्न किया गया।"
+                        : "Recent pond water telemetry log attached."
+                    )
+                  }
+                  title={content.input.attachTooltip}
+                  className="p-1.5 rounded-full text-slate-500 hover:text-[#0F5132] hover:bg-emerald-100/50 transition-colors"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
 
-              {/* Wide Text Input */}
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder={
-                  selectedMode === "batch"
-                    ? `${content.input.placeholderBatchPrefix} ${currentBatchName.split(" - ")[0]}...`
-                    : content.input.placeholderGeneral
-                }
-                className="flex-1 bg-transparent px-2 py-1 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
-              />
+                {/* Wide Text Input */}
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  placeholder={
+                    selectedMode === "batch" && currentBatchName
+                      ? `${content.input.placeholderBatchPrefix} ${currentBatchName.split(" - ")[0]}...`
+                      : content.input.placeholderGeneral
+                  }
+                  className="flex-1 min-w-0 bg-transparent px-1 py-1.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                />
 
-              {/* Voice Dictation Button */}
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                title={content.input.voiceTooltip}
-                className={`p-1.5 rounded-full transition-colors ${
-                  isListening
-                    ? "bg-red-50 text-red-600 animate-pulse"
-                    : "text-slate-500 hover:text-[#0F5132] hover:bg-emerald-100/50"
-                }`}
-              >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              </button>
+                {/* Voice Dictation Button */}
+                <button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  title={content.input.voiceTooltip}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    isListening
+                      ? "bg-red-50 text-red-600 animate-pulse"
+                      : "text-slate-500 hover:text-[#0F5132] hover:bg-emerald-100/50"
+                  }`}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
 
-              {/* Send Button (Green) */}
-              <button
-                type="submit"
-                disabled={!inputMessage.trim() || isAiStreaming}
-                title={content.input.sendTooltip}
-                className="p-2 rounded-full bg-[#0F5132] hover:bg-[#15803d] text-white disabled:opacity-40 transition-colors shadow-2xs"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
+                {/* Send Button */}
+                <button
+                  type="submit"
+                  disabled={!inputMessage.trim() || isAiStreaming}
+                  title={content.input.sendTooltip}
+                  className="p-2 rounded-full bg-[#0F5132] hover:bg-[#15803d] text-white disabled:opacity-40 transition-colors shadow-2xs"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+
+              {/* Cascading Label-v Context Selectors: Domain -> AI Mode -> Batch */}
+              <div className="mt-1.5 border-t border-slate-200/70">
+                <ChatContextSelectors
+                  selectedDomain={selectedDomain}
+                  selectedMode={selectedMode}
+                  selectedBatchId={selectedBatchId}
+                  fisheriesBatches={fisheriesBatches}
+                  poultryBatches={poultryBatches}
+                  batchContext={activeBatchContext}
+                  labels={content.selectors}
+                  onDomainChange={handleDomainChange}
+                  onModeChange={handleModeChange}
+                  onBatchSelect={handleBatchSelect}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </main>

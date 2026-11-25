@@ -1,6 +1,7 @@
 package com.agrifarm.modules.auth.controller;
 
 import com.agrifarm.common.response.ApiResponse;
+import com.agrifarm.config.RateLimiterService;
 import com.agrifarm.config.TenantContextHolder;
 import com.agrifarm.modules.auth.dto.AuthTokenResponse;
 import com.agrifarm.modules.auth.dto.FarmerRegistrationRequest;
@@ -10,6 +11,7 @@ import com.agrifarm.modules.auth.model.User;
 import com.agrifarm.modules.auth.service.AuthService;
 import com.agrifarm.modules.auth.service.EmailOtpService;
 import com.agrifarm.modules.auth.service.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class AuthController {
     private final AuthService authService;
     private final EmailOtpService emailOtpService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RateLimiterService rateLimiterService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Map<String, Object>>> register(@Valid @RequestBody FarmerRegistrationRequest request) {
@@ -54,8 +57,12 @@ public class AuthController {
     }
 
     @PostMapping("/email/send-otp")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> sendOtp(@Valid @RequestBody SendEmailOtpRequest request) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> sendOtp(
+            @Valid @RequestBody SendEmailOtpRequest request,
+            HttpServletRequest httpRequest
+    ) {
         String cleanEmail = request.getEmail().toLowerCase().trim();
+        rateLimiterService.checkOtpRateLimit(cleanEmail, httpRequest.getRemoteAddr());
 
         // STRICT MULTI-USER REQUIREMENT: Without registration, no login!
         if (!authService.isEmailRegistered(cleanEmail)) {
