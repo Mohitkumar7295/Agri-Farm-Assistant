@@ -8,14 +8,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -26,20 +31,17 @@ public class EmailOtpService {
 
     private final EmailOtpRepository emailOtpRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Value("${resend.api.key:${RESEND_API_KEY:}}")
-    private String resendApiKey;
-
-    @Value("${resend.from.email:${RESEND_FROM_EMAIL:onboarding@resend.dev}}")
-    private String fromEmail;
+    private final SecureRandom secureRandom = new SecureRandom();
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
     @Autowired(required = false)
     private org.springframework.mail.javamail.JavaMailSender mailSender;
 
-    private final SecureRandom secureRandom = new SecureRandom();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+    @Value("${resend.api.key:}")
+    private String resendApiKey;
+
+    @Value("${resend.from.email:onboarding@resend.dev}")
+    private String fromEmail;
 
     public record OtpDispatchResult(
             String otp,
@@ -49,33 +51,29 @@ public class EmailOtpService {
             String devOtp
     ) {}
 
+    @Transactional
     public OtpDispatchResult generateAndSendOtp(String email) {
         String cleanEmail = email.toLowerCase().trim();
         int randomCode = 100000 + secureRandom.nextInt(900000);
         String otp = String.valueOf(randomCode);
 
-        // Remove previous tokens for clean state
+        // Remove previous tokens for clean single-active-OTP state
         emailOtpRepository.deleteAllByEmail(cleanEmail);
 
-        // Store OTP in MongoDB with 10-minute validity
+        Instant now = Instant.now();
         EmailOtpToken token = EmailOtpToken.builder()
                 .email(cleanEmail)
-                .otp(otp)
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .otpHash(hashOtp(cleanEmail, otp))
+                .expiresAt(now.plus(10, ChronoUnit.MINUTES))
                 .verified(false)
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
                 .build();
         emailOtpRepository.save(token);
-        log.info("Generated OTP for email: {}", cleanEmail);
+        log.info("Generated hashed OTP for email: {}", cleanEmail);
 
-        // Always print console fallback in development so testing is never blocked
-        log.info("🔑 [DEV CONSOLE OTP]: For recipient '{}', OTP is: {}", cleanEmail, otp);
-
-        // Try Resend first
         boolean delivered = sendEmailViaResend(cleanEmail, otp);
         String channel = delivered ? "RESEND" : null;
 
-        // If Resend failed or not delivered, try SMTP if configured
         if (!delivered && mailSender != null) {
             delivered = sendEmailViaSmtp(cleanEmail, otp);
             if (delivered) {
@@ -85,22 +83,30 @@ public class EmailOtpService {
 
         if (delivered) {
             return new OtpDispatchResult(otp, true, channel, "Verification code sent to " + cleanEmail, null);
-        } else {
-            return new OtpDispatchResult(
-                    otp,
-                    false,
-                    "DEV_MODE",
-                    "Resend sandbox allows inbox delivery exclusively to verified account owner (mokumar7295@gmail.com). For other addresses, verification code is provided below.",
-                    otp
-            );
         }
+
+        // Clean console fallback in dev when RESEND_API_KEY is missing or sandbox-restricted
+        log.info("[DEV CONSOLE OTP] Recipient '{}' -> OTP: {}", cleanEmail, otp);
+        return new OtpDispatchResult(
+                otp,
+                false,
+                "DEV_MODE",
+                "Email delivery unavailable in dev/sandbox mode. Use the verification code provided.",
+                otp
+        );
     }
 
+    @Transactional
     public boolean verifyOtp(String email, String otp) {
         String cleanEmail = email.toLowerCase().trim();
+        String expectedHash = hashOtp(cleanEmail, otp.trim());
+
         return emailOtpRepository.findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(cleanEmail)
                 .map(token -> {
-                    if (token.getExpiresAt().isAfter(LocalDateTime.now()) && token.getOtp().equals(otp.trim())) {
+                    if (token.getExpiresAt().isAfter(Instant.now())
+                            && MessageDigest.isEqual(
+                                    token.getOtpHash().getBytes(StandardCharsets.UTF_8),
+                                    expectedHash.getBytes(StandardCharsets.UTF_8))) {
                         token.setVerified(true);
                         emailOtpRepository.save(token);
                         log.info("OTP verified successfully for email: {}", cleanEmail);
@@ -112,8 +118,20 @@ public class EmailOtpService {
                 .orElse(false);
     }
 
+    private String hashOtp(String email, String otp) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((email + ":" + otp).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+        }
+    }
+
     private boolean sendEmailViaSmtp(String recipientEmail, String otp) {
-        if (mailSender == null) return false;
+        if (mailSender == null) {
+            return false;
+        }
         try {
             jakarta.mail.internet.MimeMessage message = mailSender.createMimeMessage();
             org.springframework.mail.javamail.MimeMessageHelper helper =
@@ -123,7 +141,7 @@ public class EmailOtpService {
             helper.setSubject("AgriFarmAssistant - Your 6-Digit Verification Code");
             helper.setText(buildHtmlTemplate(otp), true);
             mailSender.send(message);
-            log.info("✅ SMTP email dispatched successfully to: {}", recipientEmail);
+            log.info("SMTP email dispatched successfully to: {}", recipientEmail);
             return true;
         } catch (Exception e) {
             log.warn("SMTP email dispatch failed: {}", e.getMessage());
@@ -133,19 +151,16 @@ public class EmailOtpService {
 
     private boolean sendEmailViaResend(String recipientEmail, String otp) {
         if (resendApiKey == null || resendApiKey.isBlank()) {
-            log.warn("⚠️ RESEND_API_KEY is not configured. Email not dispatched to network, use console OTP.");
+            log.warn("RESEND_API_KEY is not configured. Using console OTP fallback.");
             return false;
         }
 
         try {
-            String subject = "AgriFarmAssistant - Your 6-Digit Verification Code";
-            String htmlContent = buildHtmlTemplate(otp);
-
             Map<String, Object> payload = Map.of(
                     "from", "AgriFarmAssistant <" + fromEmail + ">",
                     "to", List.of(recipientEmail),
-                    "subject", subject,
-                    "html", htmlContent
+                    "subject", "AgriFarmAssistant - Your 6-Digit Verification Code",
+                    "html", buildHtmlTemplate(otp)
             );
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -157,15 +172,11 @@ public class EmailOtpService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("✅ Resend API email dispatched successfully to: {}", recipientEmail);
+                log.info("Resend API email dispatched successfully to: {}", recipientEmail);
                 return true;
-            } else if (response.statusCode() == 403) {
-                log.warn("⚠️ Resend Free Tier Notice: Under 'onboarding@resend.dev', emails are sent exclusively to your verified account email (e.g. mokumar7295@gmail.com). For recipient '{}', code will be provided via fallback.", recipientEmail);
-                return false;
-            } else {
-                log.warn("Resend API returned status {}: {}", response.statusCode(), response.body());
-                return false;
             }
+            log.warn("Resend API returned status {}: {}", response.statusCode(), response.body());
+            return false;
         } catch (Exception e) {
             log.error("Failed to send OTP email via Resend: {}", e.getMessage(), e);
             return false;
@@ -190,7 +201,7 @@ public class EmailOtpService {
                     <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">If you did not request this OTP, you can safely ignore this email.</p>
                 </div>
                 <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
-                    &copy; 2026 AgriFarmAssistant &bull; 256-Bit Encrypted Farmer Gateway
+                    &copy; 2026 AgriFarmAssistant &bull; Encrypted Farmer Gateway
                 </div>
             </div>
         """.formatted(otp);

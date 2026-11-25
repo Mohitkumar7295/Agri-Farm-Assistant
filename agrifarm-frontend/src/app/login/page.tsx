@@ -383,7 +383,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    // Payload formatted for Spring Boot Backend -> MongoDB
+    // Payload formatted for Spring Boot Backend -> Supabase PostgreSQL
     const registrationPayload = {
       fullName: regFullName.trim(),
       email: regEmail.trim(),
@@ -670,7 +670,7 @@ export default function LoginPage() {
     // Save session token in localStorage
     localStorage.setItem("agrifarm_jwt", sessionToken);
 
-    // Store user data STRICTLY from MongoDB record - NO dummy "Ramu" or fake data!
+    // Store user data STRICTLY from Supabase PostgreSQL record - NO dummy "Ramu" or fake data!
     const userProfile = {
       id: backendUser?.id || undefined,
       fullName:

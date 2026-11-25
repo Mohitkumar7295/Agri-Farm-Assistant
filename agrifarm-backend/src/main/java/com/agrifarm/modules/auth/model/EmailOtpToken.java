@@ -1,34 +1,45 @@
 package com.agrifarm.modules.auth.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "email_otp_tokens")
+@Entity
+@Table(name = "email_otp_tokens")
 public class EmailOtpToken {
 
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-    @Indexed
+    @Column(nullable = false)
     private String email;
 
-    private String otp;
+    @Column(name = "otp_hash", nullable = false)
+    private String otpHash;
 
-    private LocalDateTime expiresAt;
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
 
-    private boolean verified;
-
+    @Column(nullable = false)
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private boolean verified = false;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @Builder.Default
+    private Instant createdAt = Instant.now();
 }
