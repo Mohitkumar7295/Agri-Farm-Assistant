@@ -4,7 +4,7 @@
 > - **ICAR-CIFA** (Central Institute of Freshwater Aquaculture, Bhubaneswar, Odisha)
 > - **ICAR-CARI** (Central Avian Research Institute, Izatnagar, Uttar Pradesh)
 > 
-> *Used by the Stage-2 Verification Layer and the 4-Agent AI Core to eliminate hallucinated advice.*
+> *Used by the `Stage2VerificationLayer` and the 100% Java Spring AI RAG Core (`modules/ai/rag/ingestion/` $\rightarrow$ Supabase `pgvector`) to eliminate hallucinated advice.*
 
 ---
 

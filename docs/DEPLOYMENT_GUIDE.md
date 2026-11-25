@@ -1,10 +1,15 @@
 # 🚀 AgriFarmAssistant: Production Deployment Guide
 
-> **Target Architecture**:  
+> **Target Free-Tier Friendly Cloud Stack**:  
 > - **Frontend (Next.js 15 PWA)**: Hosted on **Vercel** (Global Edge CDN)  
-> - **Backend (Spring Boot 3.3)**: Hosted on **Railway** (Free / Starter Tier Container)  
-> - **Database & Cache**: Managed **PostgreSQL 16 (with pgvector)** and **Redis 7** on Railway  
-> - **Object Storage**: **Cloudflare R2** (S3-compatible, 10 GB free tier) or containerized MinIO
+> - **Backend + Java Spring AI RAG (Spring Boot 3.3 / Java 21)**: Hosted on **Railway** or **Render** (Single Docker Container)  
+> - **Database & Vector Store**: **Supabase** (PostgreSQL 16 + `pgvector` 768-dim HNSW index)  
+> - **Media / Object Storage**: **Supabase Storage** (`agrifarm-media` bucket for MVP; optional **Cloudflare R2** upgrade later)  
+> - **Cache, OTP & Rate Limiting**: **Upstash Redis** (Serverless)  
+> - **Email OTP & Digests**: **Resend**
+
+> [!NOTE]
+> `docker/docker-compose.yml` is strictly for **local development** only. Any existing MongoDB configuration in `.env.example` or `agrifarm-backend/pom.xml` is legacy scaffolding and is migrated to **Supabase (PostgreSQL 16 + `pgvector`)** in Phase 2/3.
 
 ---
 
@@ -13,41 +18,41 @@
 ```mermaid
 flowchart LR
     User["👨‍🌾 Farmer Device"] -->|HTTPS / PWA| Vercel["▲ Vercel Edge\n(Next.js 15 Frontend)"]
-    Vercel -->|REST / SSE Streams| Railway["🚂 Railway Container\n(Spring Boot 3.3 Alpine)"]
-    Railway --> RailPG[("🐘 Railway PostgreSQL\n+ pgvector")]
-    Railway --> RailRedis[("⚡ Railway Redis 7")]
-    Railway --> CloudflareR2[("🪣 Cloudflare R2 / S3\n(Disease Photos & Reports)")]
-    Railway --> Gemini["✨ Google Gemini API"]
-    Railway --> Resend["📧 Resend Email API"]
+    Vercel -->|REST / SSE Streams| Backend["🚂 Railway / Render\n(Single Spring Boot 3.3 + Spring AI Container)"]
+    Backend --> SupaPG[("🟢 Supabase PostgreSQL 16\n+ pgvector (768-dim HNSW)")]
+    Backend --> SupaStore[("🪣 Supabase Storage\n(agrifarm-media bucket)")]
+    Backend --> Upstash[("⚡ Upstash Redis\n(OTP, Weather TTL, Rate Limit)")]
+    Backend --> Gemini["✨ Google Gemini API"]
+    Backend --> Resend["📧 Resend Email API"]
 ```
 
 ---
 
-## Part 1: Railway Backend Deployment (Free / Starter Tier)
+## Part 1: Supabase Database, `pgvector` & Storage Setup
 
-Railway provides a reliable environment with native PostgreSQL, Redis, and Docker deployment.
-
-### Step 1: Create a Railway Project & Provision Databases
-
-1. Log into your [Railway Dashboard](https://railway.app/).
-2. Click **New Project** $\to$ **Provision PostgreSQL**.
-   - Once provisioned, click on the Postgres card $\to$ **Connect** $\to$ open the **Query** tab.
-   - Execute the following command to enable the vector extension:
-     ```sql
-     CREATE EXTENSION IF NOT EXISTS vector;
-     ```
-3. In the same project, click **+ New** $\to$ **Database** $\to$ **Add Redis**.
+1. Create a free project in the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Open **SQL Editor** and enable `pgvector`:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+3. Copy your **Transaction Pooler** JDBC connection string (`port 6543`) for Spring Boot runtime and your **Session/Direct** connection string (`port 5432`) for Flyway migrations.
+4. Go to **Storage** $\to$ **New Bucket** $\to$ create `agrifarm-media` (private bucket, accessed via signed URLs; metadata URLs stored in the `media_history` table).
+   - *Optional later upgrade:* You may swap to **Cloudflare R2** (10 GB free egress) for high-volume media; do **not** run self-hosted MinIO in production.
 
 ---
 
-### Step 2: Configure Spring Boot JVM for Railway Memory Limits
+## Part 2: Railway / Render Single-Container Backend Deployment
+
+All 20 backend modules **and** the 100% Java Spring AI RAG ETL pipeline (`modules/ai/rag/ingestion/`) run inside **one** Spring Boot 3.3 (Java 21) container. There is no separate Python ETL container.
+
+### Step 1: Configure Spring Boot JVM for Free-Tier Memory Limits
 
 > [!IMPORTANT]
-> Railway's free/starter tier provides 512 MB to 1 GB of RAM. The JVM must be instructed not to exceed the container memory limit to prevent Railway from killing the process with an Out-of-Memory (OOM) exit code 137.
+> Free/starter tiers on Railway and Render provide 512 MB to 1 GB of RAM. The JVM must be instructed not to exceed the container memory limit to prevent Out-of-Memory (OOM) exit code 137.
 
-In your `Dockerfile.backend` or Railway service settings, set the JVM flags:
+In `docker/Dockerfile.backend`:
 ```dockerfile
-# Multi-stage Dockerfile for Railway
+# Multi-stage Dockerfile for Railway / Render
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /workspace
 COPY pom.xml mvnw ./
@@ -60,80 +65,63 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=builder /workspace/target/*.jar app.jar
 EXPOSE 8080
-# Critical memory flags for Railway free tier:
+# Critical memory flags for 512MB-1GB containers:
 ENV JAVA_OPTS="-XX:+UseSerialGC -XX:MaxRAMPercentage=75 -Xss512k -Djava.security.egd=file:/dev/./urandom"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
 ```
 
----
+### Step 2: Deploy the Backend Service on Railway or Render
 
-### Step 3: Deploy the Backend Service on Railway
-
-1. In your Railway Project, click **+ New** $\to$ **GitHub Repo**.
-2. Select your `agrifarm-assistant` repository.
-3. In the service settings:
-   - **Root Directory**: `agrifarm-backend`
-   - **Build Command**: Leave default or specify `./mvnw clean package -DskipTests`
-4. Set the **Environment Variables** in the Railway Dashboard:
+1. Log into [Railway](https://railway.app/) or [Render](https://render.com/), create a new Web Service from `https://github.com/Mohitkumar7295/Agri-Farm-Assistant.git`.
+2. Set **Root Directory** to `agrifarm-backend` and **Dockerfile Path** to `../docker/Dockerfile.backend` (or build with `./mvnw clean package -DskipTests`).
+3. Set the **Environment Variables**:
 
 | Variable Name | Value Source / Example | Purpose |
 | :--- | :--- | :--- |
-| `SPRING_PROFILES_ACTIVE` | `prod` | Activates production configuration |
-| `SPRING_DATASOURCE_URL` | `${{Postgres.DATABASE_URL}}` | Auto-linked from Railway Postgres |
-| `SPRING_DATA_REDIS_URL` | `${{Redis.REDIS_URL}}` | Auto-linked from Railway Redis |
-| `SPRING_AI_GEMINI_API_KEY` | `AIzaSy...` | Google Gemini API key for 4-Agent Core |
-| `RESEND_API_KEY` | `re_...` | For zero-SMS Email OTP and daily alerts |
+| `SPRING_PROFILES_ACTIVE` | `prod` | Activates production configuration (add `,ingest` for one-off CLI RAG ingestion) |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://aws-0-<region>.pooler.supabase.com:6543/postgres?prepareThreshold=0` | Supabase PostgreSQL 16 + `pgvector` |
+| `SPRING_DATASOURCE_USERNAME` | `postgres.<project-ref>` | Supabase DB user |
+| `SPRING_DATASOURCE_PASSWORD` | `<supabase-db-password>` | Supabase DB password |
+| `SPRING_DATA_REDIS_URL` | `rediss://default:<password>@<endpoint>.upstash.io:6379` | Upstash Redis (TLS) |
+| `SPRING_AI_GEMINI_API_KEY` | `AIzaSy...` | Google Gemini API key for 4-Agent Core & 768-dim embeddings |
+| `RESEND_API_KEY` | `re_...` | Zero-SMS Email OTP and 07:00 AM daily digests |
 | `JWT_SECRET` | `4a8f9c12e73b50d8...` *(64+ hex characters)* | Cryptographic signing key |
 | `CORS_ALLOWED_ORIGINS` | `https://your-app.vercel.app` | Vercel production frontend domain |
-| `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` | Cloudflare R2 endpoint |
-| `S3_BUCKET_NAME` | `agrifarm-storage` | S3 bucket for disease images |
-| `S3_ACCESS_KEY` | `your-r2-access-key` | Cloudflare R2 access key |
-| `S3_SECRET_KEY` | `your-r2-secret-key` | Cloudflare R2 secret key |
+| `SUPABASE_URL` | `https://<project-ref>.supabase.co` | Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | `<service-role-key>` | Used for `agrifarm-media` signed URLs |
+| `SUPABASE_STORAGE_BUCKET` | `agrifarm-media` | Media bucket for disease photos & PDFs |
 
-5. Under **Settings** $\to$ **Networking**, click **Generate Public Domain**.  
-   *Your backend is now live at: `https://agrifarm-backend-production.up.railway.app`*
-
----
-
-## Part 2: Vercel Frontend Deployment (Next.js 15 PWA)
-
-Vercel provides native optimization for Next.js 15 App Router, Image Optimization, and Edge caching.
-
-### Step 1: Push Frontend to GitHub & Import into Vercel
-
-1. Log into your [Vercel Dashboard](https://vercel.com/).
-2. Click **Add New...** $\to$ **Project**.
-3. Import your GitHub repository.
-4. In the Project Configuration:
-   - **Root Directory**: Select `agrifarm-frontend`
-   - **Framework Preset**: `Next.js`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `.next`
+4. Trigger initial ICAR-CIFA & ICAR-CARI RAG ingestion into Supabase `pgvector` after deployment:
+   ```bash
+   curl -X POST https://your-backend-domain/api/v1/admin/rag/ingest \
+     -H "Authorization: Bearer <ADMIN_JWT>" \
+     -H "Content-Type: application/json" \
+     -d '{"domain":"ALL","forceReindex":false}'
+   ```
 
 ---
+
+## Part 3: Vercel Frontend Deployment (Next.js 15 PWA)
+
+### Step 1: Import into Vercel
+1. Log into [Vercel](https://vercel.com/) $\to$ **Add New...** $\to$ **Project** $\to$ import `Mohitkumar7295/Agri-Farm-Assistant`.
+2. Set **Root Directory** to `agrifarm-frontend`, **Framework Preset** to `Next.js`, **Build Command** to `npm run build`.
 
 ### Step 2: Configure Vercel Environment Variables
 
-In the Vercel project configuration, add the following under **Environment Variables**:
-
 | Variable Name | Target Value | Description |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_API_URL` | `https://agrifarm-backend-production.up.railway.app/api/v1` | Points to your Railway API |
+| `NEXT_PUBLIC_API_URL` | `https://<your-railway-or-render-domain>/api/v1` | Points to your Spring Boot API |
 | `NEXT_PUBLIC_APP_ENV` | `production` | Enables production telemetry |
-| `NEXT_PUBLIC_DEFAULT_LOCALE`| `hi` | Sets default language to Hindi |
-
----
+| `NEXT_PUBLIC_DEFAULT_LOCALE` | `hi` | Sets default language to Hindi |
 
 ### Step 3: Configure PWA Headers & Permissions in `next.config.ts`
-
-Ensure your `agrifarm-frontend/next.config.ts` allows camera and microphone access for the Vision Scanner and Voice Assistant:
-
+Ensure `agrifarm-frontend/next.config.ts` permits camera, microphone, and geolocation for the Vision Scanner, Voice Assistant, and Farm GPS:
 ```typescript
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Ensure headers permit camera & microphone for PWA on Mobile
   async headers() {
     return [
       {
@@ -143,14 +131,8 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(self), geolocation=(self)"
           },
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff"
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY"
-          }
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" }
         ]
       }
     ];
@@ -162,23 +144,18 @@ export default nextConfig;
 
 ---
 
-## Part 3: Free-Tier Storage Setup (Cloudflare R2)
+## Part 4: Upstash Redis & Resend Email Sentinel
 
-MinIO running inside a container on Railway consumes memory. **Cloudflare R2** is S3-compatible and offers **10 GB free storage with zero egress fees**, making it ideal for the free tier.
-
-1. Create a free account at [Cloudflare](https://dash.cloudflare.com/).
-2. Go to **R2 Object Storage** $\to$ **Create Bucket** $\to$ name it `agrifarm-storage`.
-3. In bucket settings, click **Manage R2 API Tokens** $\to$ **Create API Token** (Read & Write permissions).
-4. Copy the `Access Key ID`, `Secret Access Key`, and `Endpoint URL` into Railway's environment variables.
+1. **Upstash Redis**: Create a free serverless database at [Upstash Console](https://console.upstash.com/), enable TLS, and copy the `rediss://...` URL into `SPRING_DATA_REDIS_URL`. Used for 30-min Open-Meteo weather caching, 10-min OTP storage, and sliding-window rate limiting.
+2. **Resend**: Create an API key at [Resend](https://resend.com/), verify your sender domain, and set `RESEND_API_KEY`. Powers zero-SMS Email OTP login, 07:00 AM bilingual daily digests, and emergency nocturnal hypoxia alerts.
 
 ---
 
-## Part 4: Post-Deployment Smoke Test Checklist
+## Part 5: Post-Deployment Smoke Test Checklist
 
-Once both Vercel and Railway are running:
-
-- [ ] **Email OTP Flow**: Visit `https://your-app.vercel.app/login`, enter your email, verify OTP is received via Resend within 5 seconds and successfully logs into the dashboard.
-- [ ] **Multi-Tenant GPS**: Allow browser location access; confirm latitude and longitude are correctly stamped on farm creation.
+- [ ] **Email OTP Flow**: Visit `https://your-app.vercel.app/login`, enter your email, verify OTP is received via Resend within 5 seconds and logs into the dashboard.
+- [ ] **Multi-Tenant GPS**: Allow browser location access; confirm latitude and longitude are saved on farm creation in Supabase.
 - [ ] **Stock Underflow Check**: Attempt to record 999 mortalities on an empty poultry batch; confirm backend returns HTTP 409 `STOCK_UNDERFLOW_ERROR`.
-- [ ] **SSE Streaming Advisory**: Send a question in the AI Advisory tab; verify tokens stream in character-by-character with ICAR citations.
-- [ ] **PWA Offline Shell**: Turn off Wi-Fi/Mobile data; confirm the app shell and cached ICAR manuals load cleanly without a broken network page.
+- [ ] **Java Spring AI RAG & SSE Streaming**: Send a question in the AI Advisory tab; verify tokens stream character-by-character with ICAR citations from Supabase `pgvector`.
+- [ ] **Supabase Media Upload**: Capture a photo in `/disease-doctor`; verify it uploads to `agrifarm-media` and records a URL in `media_history`.
+- [ ] **PWA Offline Shell**: Turn off Wi-Fi/Mobile data; confirm the app shell and cached ICAR manuals load cleanly.

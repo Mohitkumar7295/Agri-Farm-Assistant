@@ -34,12 +34,14 @@
 │  └───────────────────────┘ └─────────────────────────┘ └─────────────────────────────┘│
 │                                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
-│  │ 🤖 4-Agent Multi-AI Core (Spring AI + Gemini Cascade)                             │  │
+│  │ 🤖 4-Agent Multi-AI Core & Java RAG (Spring AI + Gemini Cascade)                  │  │
 │  │  1. Fisheries AI (ICAR-CIFA)       3. Farm Management AI                         │  │
 │  │  2. Poultry AI (ICAR-CARI)         4. General Agri Router                        │  │
 │  │  ──────────────────────────────────────────────────────────────────────────────  │  │
+│  │  📚 Java Spring AI ETL (modules/ai/rag/ingestion/):                              │  │
+│  │     PagePdfDocumentReader -> TokenTextSplitter + MetadataEnricher -> PgVectorStore│  │
 │  │  🔍 Stage-2 Verification Layer (Validates against Scientific Threshold Tables)   │  │
-│  │  👁️ Vision AI (Fish Fin/Scale & Poultry Lesion Detection via MinIO images)       │  │
+│  │  👁️ Vision AI (Fish Fin/Scale & Poultry Lesion Detection via Supabase Storage)   │  │
 │  │  🎙️ Multilingual Speech Engine (Hindi/English STT + TTS)                          │  │
 │  │  📖 Localization Dictionaries (English & Hindi)                                  │  │
 │  └──────────────────────────────────────────────────────────────────────────────────┘  │
@@ -52,19 +54,11 @@
                │                           │                               │
                ▼                           ▼                               ▼
     ┌──────────────────────┐    ┌────────────────────┐          ┌──────────────────────┐
-    │ 🐘 PostgreSQL 16     │    │  ⚡ Redis 7        │          │ 🪣 MinIO S3 Storage  │
-    │  • Relational Schema │    │  • 30m Weather     │          │  • Disease Photos    │
-    │  • pgvector (HNSW)   │    │  • Mandi Cache     │          │  • Soil & Lab PDFs   │
-    │  • Multi-tenant RLS  │    │  • Session Tokens  │          │  • Loan Reports      │
-    └──────────▲───────────┘    └────────────────────┘          └──────────────────────┘
-               │
-               │
-┌──────────────┴─────────────────────────────────────────────────────────────────────────┐
-│                      🐍 PYTHON DATA & RAG ETL PIPELINE                                 │
-│  • ICAR-CIFA (Fisheries) & ICAR-CARI (Poultry) Manual Parsers                          │
-│  • Scientific Threshold Matrix Tables & Feed Nutritional Charts                        │
-│  • Chunking, Metadata Tagging (Domain, Species, Stage) -> pgvector                     │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+    │ 🟢 Supabase Postgres │    │  ⚡ Upstash Redis  │          │ 🪣 Supabase Storage  │
+    │  • Relational Schema │    │  • 30m Weather     │          │  • agrifarm-media    │
+    │  • pgvector (768 HNSW│    │  • Mandi Cache     │          │  • Disease Photos    │
+    │  • media_history URLs│    │  • OTP & Rate Limit│          │  • Soil & Lab PDFs   │
+    └──────────────────────┘    └────────────────────┘          └──────────────────────┘
 ```
 
 ```mermaid
@@ -79,10 +73,10 @@ flowchart TB
     subgraph GatewayLayer["Security & Gateway Filter Chain"]
         JWTFilter["JwtAuthenticationFilter"]
         TenantFilter["TenantContextFilter (ThreadLocal user_id)"]
-        RateLimiter["Redis Sliding Window Rate Limiter"]
+        RateLimiter["Upstash Redis Sliding Window Rate Limiter"]
     end
 
-    subgraph ServiceLayer["Spring Boot 3.3 Application Core"]
+    subgraph ServiceLayer["Spring Boot 3.3 Single Container (Railway / Render)"]
         FarmMod["Farm & Livestock Module"]
         ProdEng["Production Engines (FCR, DWG, Biomass)"]
         SafeMort["Safe Mortality Decrement Engine"]
@@ -90,19 +84,20 @@ flowchart TB
         SchedEng["Scheduled Jobs (Digest, Weather, Aerator)"]
     end
 
-    subgraph AICore["4-Agent ICAR AI Core"]
+    subgraph AICore["100% Java Spring AI Core & RAG"]
         AgentRouter["AgentRouter (Intent Dispatcher)"]
         FishSpec["Fisheries Specialist (ICAR-CIFA)"]
         PoultSpec["Poultry Specialist (ICAR-CARI)"]
         FarmSpec["Farm Management Specialist"]
+        JavaETL["Spring AI ETL (modules/ai/rag/ingestion/)"]
         Stage2["Stage-2 Verification Layer (Hard Matrix)"]
     end
 
-    subgraph DataLayer["Storage & Cache Layer (Railway)"]
-        PG[("PostgreSQL 16\n- Relational Schema\n- Multi-Tenant RLS\n- chk_positive_stock")]
-        PGV[("pgvector\n- HNSW 1536 Index\n- ICAR Research Chunks")]
-        RedisCache[("Redis 7 Alpine\n- 30-min Weather Cache\n- OTP Store (10m TTL)\n- Rate Limit Tokens")]
-        BlobStore[("MinIO / Cloudflare R2\n- Lesion Photos\n- PDF Farm Reports")]
+    subgraph DataLayer["Managed Cloud Storage & Cache"]
+        PG[("Supabase PostgreSQL 16\n- Relational Schema\n- Multi-Tenant Isolation\n- chk_positive_stock")]
+        PGV[("Supabase pgvector\n- HNSW 768-dim Index\n- ICAR Research Chunks")]
+        RedisCache[("Upstash Redis\n- 30-min Weather Cache\n- OTP Store (10m TTL)\n- Rate Limit Tokens")]
+        BlobStore[("Supabase Storage\n- agrifarm-media bucket\n- Lesion Photos & PDFs")]
     end
 
     PWA --> GatewayLayer
@@ -111,6 +106,7 @@ flowchart TB
     ServiceLayer <--> PG
     ServiceLayer <--> RedisCache
     ServiceLayer <--> BlobStore
+    JavaETL -->|PgVectorStore Upsert| PGV
     AICore <--> PGV
     AICore --> Stage2
     Stage2 --> PWA
@@ -156,10 +152,10 @@ flowchart TB
 - **Stage-2 Verification Layer**: Programmatic Java validation ensuring chemical dosages and feeding recommendations never breach hard scientific limits (e.g., zero feeding when DO < 3.0 mg/L).
 
 ### 2.5 Data & Storage Tier
-- **PostgreSQL 16**: Relational schema with multi-tenant row-level security and check constraints (`chk_positive_poultry_stock`, `chk_positive_fish_stock`).
-- **pgvector**: HNSW-indexed vector store for authentic ICAR research manual chunks.
-- **Redis 7**: 30-minute weather cache, OTP verification store (10m TTL), and session management.
-- **MinIO / S3**: Presigned URL storage for disease diagnosis photos, lab reports, and exportable PDFs.
+- **Supabase (PostgreSQL 16)**: Relational schema with multi-tenant isolation, Flyway migrations (`V1__init_schema.sql`+), and check constraints (`chk_positive_poultry_stock`, `chk_positive_fish_stock`). *(Note: Any existing MongoDB config in `.env.example` or `agrifarm-backend/pom.xml` is legacy scaffolding and will be migrated to Supabase in Phase 2/3.)*
+- **Supabase `pgvector`**: HNSW-indexed vector store (**768-dim** embeddings) populated by **Spring AI's native Java ETL Pipeline** (`modules/ai/rag/ingestion/`).
+- **Upstash Redis**: Serverless Redis for 30-minute weather cache, OTP verification store (10m TTL), and sliding-window rate limiting.
+- **Supabase Storage (`agrifarm-media`)**: Signed URL object storage for disease diagnosis photos, lab reports, and exportable PDFs (with URLs tracked in `media_history`; optional Cloudflare R2 upgrade later).
 
 ---
 
@@ -177,15 +173,16 @@ agrifarm-assistant/
 │       └── docker-publish.yml               # Containerize & push to registry
 │
 ├── docker/
-│   ├── docker-compose.yml                   # Postgres (pgvector), Redis, MinIO
-│   ├── Dockerfile.backend                   # JDK 21 Temurin Alpine multi-stage
+│   ├── docker-compose.yml                   # Local Dev Only: Postgres (pgvector), Redis
+│   ├── Dockerfile.backend                   # Single Container: JDK 21 Temurin Alpine (API + Java RAG)
 │   ├── Dockerfile.frontend                  # Node 20 Alpine Next.js multi-stage
-│   ├── Dockerfile.pipeline                  # Python 3.11 ETL Worker
 │   └── postgres/
 │       ├── init-extensions.sql              # CREATE EXTENSION IF NOT EXISTS vector;
 │       └── init-roles.sql                   # Multi-tenant user schema grants
 │
-├── .env.example                             # Master environment template (DB, Gemini, Resend, S3)
+├── .env.example                             # Master environment template (Supabase, Gemini, Resend, Upstash)
+├── AGENTS.md                                # Mandatory AI coding agent guardrails
+├── ROADMAP.md                               # 3-person team ownership & 5-phase execution plan
 ├── Makefile                                 # Commands: make dev, make build, make ingest, make seed
 ├── README.md                                # Master project documentation
 │
@@ -203,10 +200,10 @@ agrifarm-assistant/
 │       │   │   │   ├── SecurityConfig.java         # Stateless JWT filter + Email OTP endpoints
 │       │   │   │   ├── TenantContextFilter.java    # Strict Multi-Tenant user_id isolation
 │       │   │   │   ├── CorsConfig.java             # Responsive Laptop & Mobile Web origins
-│       │   │   │   ├── SpringAiConfig.java         # Gemini 1.5 Pro/Flash + ChatClient config
-│       │   │   │   ├── VectorStoreConfig.java      # PgVectorStore with HNSW index config
-│       │   │   │   ├── RedisCacheConfig.java       # Cache manager for 30-min weather TTL
-│       │   │   │   ├── MinioConfig.java            # MinIO client for disease photos & PDFs
+│       │   │   │   ├── SpringAiConfig.java         # Gemini Pro/Flash + ChatClient + EmbeddingModel
+│       │   │   │   ├── VectorStoreConfig.java      # Spring AI PgVectorStore (768-dim HNSW)
+│       │   │   │   ├── RedisCacheConfig.java       # Upstash Redis cache manager (30-min weather TTL)
+│       │   │   │   ├── SupabaseStorageConfig.java  # Supabase Storage (agrifarm-media) client
 │       │   │   │   └── MailConfig.java             # Resend API / JavaMailSender config
 │       │   │   │
 │       │   │   ├── common/                  # Cross-Cutting Shared Layer
@@ -323,7 +320,12 @@ agrifarm-assistant/
 │       │   │   │   │   │   └── ScientificThresholdMatrix.java  # Hard water/feed limits
 │       │   │   │   │   ├── rag/
 │       │   │   │   │   │   ├── PgVectorKnowledgeRetriever.java # Similarity + Hybrid search
-│       │   │   │   │   │   └── PromptTemplateManager.java      # Merges farm context + protocol
+│       │   │   │   │   │   ├── PromptTemplateManager.java      # Merges farm context + protocol
+│       │   │   │   │   │   └── ingestion/                      # 100% Java Spring AI ETL Pipeline
+│       │   │   │   │   │       ├── IcarDocumentIngestionService.java # PagePdf/TikaReader + TokenTextSplitter
+│       │   │   │   │   │       ├── IcarMetadataEnricher.java         # Tags { domain, species, stage }
+│       │   │   │   │   │       ├── RagIngestionController.java       # POST /api/v1/admin/rag/ingest
+│       │   │   │   │   │       └── RagIngestionRunner.java           # --spring.profiles.active=ingest
 │       │   │   │   │   ├── vision/          # Feature 13: Photo Disease Analysis
 │       │   │   │   │   │   ├── DiseaseVisionService.java       # Gemini Multimodal / Leaf / Fin
 │       │   │   │   │   │   └── ImagePreProcessor.java
@@ -367,7 +369,12 @@ agrifarm-assistant/
 │       │   └── resources/
 │       │       ├── application.yml              # Base settings
 │       │       ├── application-dev.yml          # Local Postgres + pgvector + Redis
-│       │       ├── application-prod.yml         # Cloud credentials, Resend API key
+│       │       ├── application-prod.yml         # Supabase + Upstash Redis + Resend
+│       │       ├── rag-data/                    # ICAR-CIFA & ICAR-CARI Manuals (Java ETL source)
+│       │       │   ├── icar_cifa_fisheries_manual.pdf
+│       │       │   ├── icar_cari_poultry_management.pdf
+│       │       │   ├── fish_disease_treatment_matrix.pdf
+│       │       │   └── water_quality_critical_thresholds.csv
 │       │       ├── prompts/                     # Spring AI StringTemplates (.st)
 │       │       │   ├── fisheries-cifa-agent.st
 │       │       │   ├── poultry-cari-agent.st
@@ -390,39 +397,12 @@ agrifarm-assistant/
 │           └── resources/application-test.yml
 │
 │
-├── agrifarm-rag-pipeline/                   # 🐍 Python Knowledge Ingestion & ETL
-│   ├── requirements.txt                     # langchain, unstructured, pypdf, psycopg2, pgvector
-│   ├── config.py                            # Database credentials & embedding model keys
-│   ├── data/
-│   │   ├── raw_protocols/                   # Authentic scientific research documents
-│   │   │   ├── icar_cifa_fisheries_manual.pdf
-│   │   │   ├── icar_cari_poultry_management.pdf
-│   │   │   ├── fish_disease_treatment_matrix.pdf
-│   │   │   └── water_quality_critical_thresholds.csv
-│   │   └── reference_tables/
-│   │       ├── feeding_rate_by_body_weight.json
-│   │       └── poultry_vaccine_schedule_india.json
-│   │
-│   ├── parsers/
-│   │   ├── protocol_pdf_parser.py           # Extracts text, tables, and disease remedy charts
-│   │   └── threshold_matrix_parser.py       # Converts safety limits to structured embeddings
-│   │
-│   ├── processors/
-│   │   ├── semantic_chunker.py              # Chunks by species (Rohu/Broiler), disease, stage
-│   │   └── metadata_enricher.py             # Tags: { domain: "fisheries", species: "Rohu" }
-│   │
-│   ├── embedder/
-│   │   └── pgvector_upserter.py             # Computes embeddings & performs batch insert
-│   │
-│   └── main_ingest.py                       # CLI Runner: python main_ingest.py --domain all
-│
-│
 ├── agrifarm-frontend/                       # 🌐 Next.js 15 Responsive PWA (Mobile + Laptop)
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.ts                   # Theme palettes: Cyan (Aqua), Crimson (Poultry), Green (Agri)
 │   ├── postcss.config.mjs
-│   ├── next.config.ts                       # PWA headers, camera permissions, MinIO domains
+│   ├── next.config.ts                       # PWA headers, camera permissions, Supabase Storage domains
 │   │
 │   ├── public/                              # PWA Assets
 │   │   ├── manifest.json                    # PWA Manifest (standalone display, theme colors)
@@ -539,7 +519,7 @@ agrifarm-assistant/
     ├── SYSTEM_ARCHITECTURE.md               # Flow diagrams, multi-agent protocol, file mapping
     ├── SCIENTIFIC_THRESHOLDS.md             # ICAR-CIFA and ICAR-CARI threshold specs
     ├── API_SPECIFICATION.md                 # Full OpenAPI 3.0 / Swagger schema
-    └── DEPLOYMENT_GUIDE.md                  # Docker Compose, Vercel & Railway setup
+    └── DEPLOYMENT_GUIDE.md                  # Local Docker Compose, Vercel, Railway/Render & Supabase setup
 ```
 
 ---
@@ -579,7 +559,9 @@ To guarantee 100% architectural coverage, the table below maps each of the 20 fu
 
 ## 5. Detailed Documentation Links
 
+- [AI Agent Guardrails (`AGENTS.md`)](AGENTS.md)
+- [5-Phase Team Roadmap (`ROADMAP.md`)](ROADMAP.md)
 - [System Architecture Specification](docs/SYSTEM_ARCHITECTURE.md)
 - [Scientific Threshold Matrices (ICAR-CIFA / ICAR-CARI)](docs/SCIENTIFIC_THRESHOLDS.md)
 - [OpenAPI 3.0 API Specification](docs/API_SPECIFICATION.md)
-- [Docker & Cloud Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Cloud & Local Deployment Guide](docs/DEPLOYMENT_GUIDE.md)

@@ -1,7 +1,7 @@
 # 📡 AgriFarmAssistant: OpenAPI 3.0 & REST / SSE Specification
 
 > **Base URL (Local)**: `http://localhost:8080/api/v1`  
-> **Base URL (Production on Railway)**: `https://agrifarm-backend-production.up.railway.app/api/v1`  
+> **Base URL (Production on Railway / Render)**: `https://agrifarm-backend-production.up.railway.app/api/v1`  
 > **Protocol**: HTTPS / Server-Sent Events (SSE) for streaming AI advisory.
 
 ---
@@ -360,3 +360,48 @@ data: {"status": "COMPLETED"}
   }
 }
 ```
+
+---
+
+## 13. Java Spring AI RAG Ingestion Contract (`/admin/rag`)
+
+The 100% Java Spring AI ETL pipeline (`modules/ai/rag/ingestion/`) runs inside `agrifarm-backend` and exposes a clean contract so Member 3 (RAG/AI Engineer) can work independently of core CRUD modules.
+
+### 13.1 Trigger ICAR Document Ingestion (Admin Only)
+- **Endpoint**: `POST /admin/rag/ingest`
+- **Authorization**: `ROLE_ADMIN` Bearer JWT
+- **CLI Alternative**: `java -jar app.jar --spring.profiles.active=ingest`
+- **Request Body**:
+```json
+{
+  "domain": "ALL",
+  "forceReindex": false
+}
+```
+*(Supported `domain` values: `ALL`, `FISHERIES`, `POULTRY`, `THRESHOLDS`)*
+- **Response**: `200 OK`
+```json
+{
+  "success": true,
+  "message": "ICAR knowledge ingestion completed",
+  "data": {
+    "documentsProcessed": 4,
+    "chunksGenerated": 312,
+    "embeddingDimension": 768,
+    "vectorStore": "supabase_pgvector_hnsw",
+    "durationMs": 4820
+  }
+}
+```
+
+### 13.2 Internal Java Contract (`PgVectorKnowledgeRetriever`)
+- **Input**: `(String query, String domain, String species, int topK)`
+- **Output**: `List<Document>` enriched with `{ domain, species, stage, source }` metadata from Supabase `pgvector` (768-dim cosine similarity).
+
+---
+
+## 14. Media Upload & `media_history` Contract (`/media`)
+
+- **Endpoint**: `POST /media/upload` (`multipart/form-data`)
+- **Storage Backend**: **Supabase Storage** (`agrifarm-media` bucket)
+- **Database Tracking**: Stores `{ id, user_id, entity_type, entity_id, bucket_path, signed_url, created_at }` in `media_history` (never raw bytes in PostgreSQL).
