@@ -76,6 +76,18 @@ class SupabaseSchemaAndUserFlowTest {
                 Integer.class
         );
         assertEquals(1, hnswIndexCount, "HNSW index idx_vector_store_hnsw must exist on vector_store");
+
+        Integer seedFarmCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM farms WHERE name = 'Malwa Integrated Aqua & Poultry Farm'",
+                Integer.class
+        );
+        assertTrue(seedFarmCount != null && seedFarmCount >= 1, "Seeded Indian integrated farm must exist");
+
+        Integer compositeIdxCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_farms_user_created', 'idx_water_telemetry_user_logged', 'idx_daily_feed_logs_user_logged')",
+                Integer.class
+        );
+        assertEquals(3, compositeIdxCount, "Stage 3.3 composite time-series indexes must exist");
     }
 
     @Test
