@@ -22,6 +22,7 @@ public class WeatherResponse {
     private Double maxTemperature;
     private Double minTemperature;
     private Double precipitation;
+    private Integer cloudCover;
 
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();

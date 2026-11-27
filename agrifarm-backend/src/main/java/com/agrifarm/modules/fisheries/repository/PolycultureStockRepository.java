@@ -8,11 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface PolycultureStockRepository extends JpaRepository<PolycultureStock, UUID> {
+    List<PolycultureStock> findAllByFishBatchId(UUID fishBatchId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM PolycultureStock s WHERE s.id = :id")
     Optional<PolycultureStock> findByIdForUpdate(@Param("id") UUID id);
